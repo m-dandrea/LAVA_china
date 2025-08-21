@@ -4,17 +4,18 @@
 This script searches for all raster files matching ``*_available_land_*.tif``
 inside ``data/**/available_land/``. The technology and scenario are parsed
 from the file name and rasters belonging to the same technology and scenario
-are reprojected to ``EPSG:4326`` and merged into a single raster. This
-combined raster is then converted to vector polygons. The polygons are
-written as layers to a GeoPackage (``aggregated_available_land.gpkg`` by
-default).
+are reprojected to a target CRS (default ``EPSG:4326``) and merged into a
+single raster. This combined raster is then converted to vector polygons. The
+polygons are written as layers to a GeoPackage (``aggregated_available_land.gpkg``
+by default).
 
 Usage::
 
-    python simple_results_analysis.py [--root PATH] [--output FILE]
+    python simple_results_analysis.py [--root PATH] [--output FILE] [--crs CRS]
 
 By default ``--root`` is the directory containing this script, i.e. the
-repository root. ``--output`` sets the resulting GeoPackage path.
+repository root. ``--output`` sets the resulting GeoPackage path. ``--crs``
+defines the target CRS for raster merging.
 """
 
 from __future__ import annotations
@@ -49,14 +50,13 @@ def _parse_info(path: Path):
 logger = logging.getLogger(__name__)
 
 
+DEFAULT_CRS = CRS.from_epsg(4326)
 
-TARGET_CRS = CRS.from_epsg(4326)
 
-
-def _merge_rasters(paths: list[Path]):
-    """Reproject rasters to EPSG:4326, merge and return data, transform, nodata and crs."""
+def _merge_rasters(paths: list[Path], crs: CRS = DEFAULT_CRS):
+    """Reproject rasters to ``crs``, merge and return data, transform, nodata and CRS."""
     srcs = [rasterio.open(p) for p in paths]
-    vrts = [WarpedVRT(src, crs=TARGET_CRS) for src in srcs]
+    vrts = [WarpedVRT(src, crs=crs) for src in srcs]
     try:
         mosaic, out_trans = merge(vrts)
         nodata = vrts[0].nodata
@@ -65,7 +65,7 @@ def _merge_rasters(paths: list[Path]):
             vrt.close()
         for src in srcs:
             src.close()
-    return mosaic[0], out_trans, nodata, TARGET_CRS
+    return mosaic[0], out_trans, nodata, crs
 
 
 def _array_to_gdf(data, transform, nodata, crs) -> gpd.GeoDataFrame:
@@ -106,7 +106,7 @@ def parse_info_json(path: Path) -> dict | None:
         return None
 
 
-def aggregate_available_land(root: Path, output: Path) -> None:
+def aggregate_available_land(root: Path, output: Path, crs: CRS = DEFAULT_CRS) -> None:
     files = list(root.glob("data/**/available_land/*_available_land_*.tif"))
     groups: dict[tuple[str, str], list[tuple[str, Path, dict]]] = {}
     for f in files:
@@ -126,8 +126,8 @@ def aggregate_available_land(root: Path, output: Path) -> None:
 
     for (tech, scen), items in groups.items():
         paths = [p for _, p, _ in items]
-        data, transform, nodata, crs = _merge_rasters(paths)
-        gdf = _array_to_gdf(data, transform, nodata, crs)
+        data, transform, nodata, target_crs = _merge_rasters(paths, crs)
+        gdf = _array_to_gdf(data, transform, nodata, target_crs)
         merged_geom = unary_union(gdf.geometry)
 
         area_sum = sum(info["available_area"] for _, _, info in items)
@@ -144,7 +144,7 @@ def aggregate_available_land(root: Path, output: Path) -> None:
                 "eligibility_share": [share_agg],
                 "geometry": [merged_geom],
             },
-            crs=crs,
+            crs=target_crs,
         )
         layer = f"{tech}_{scen}"
         gdf.to_file(output, layer=layer, driver="GPKG")
@@ -169,6 +169,17 @@ if __name__ == "__main__":
         default=Path(__file__).resolve().parent,
         help="Project root containing data directory",
     )
-    parser.add_argument("--output", type=Path, default=Path("aggregated_available_land.gpkg"), help="Output GeoPackage path")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("aggregated_available_land.gpkg"),
+        help="Output GeoPackage path",
+    )
+    parser.add_argument(
+        "--crs",
+        default="EPSG:4326",
+        help="Target CRS for raster merging",
+    )
     args = parser.parse_args()
-    aggregate_available_land(args.root, args.output)
+    target_crs = CRS.from_user_input(args.crs)
+    aggregate_available_land(args.root, args.output, target_crs)
