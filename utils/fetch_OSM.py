@@ -80,10 +80,15 @@ def osm_to_gpkg(
     #print(f"Fetching data for: {region_name} ")
     #print(f"Fetching data for: {location.displayName()} (Area ID: {area_id})")
     
-    overpass = Overpass() # Initialize Overpass API interface
+
+    # some spatial elements like airports or waterbodies can be represented as both ways and relations
+    element_types = element_type if isinstance(element_type, list) else [element_type]
+
+    overpass = Overpass()
+
     query = overpassQueryBuilder(
         polygon=polygon,
-        elementType=[element_type],
+        elementType=element_types,
         selector=selector,
         includeGeometry=True
         ) # Build Overpass query
@@ -143,7 +148,7 @@ def osm_to_gpkg(
         )
         # Write layer using UTF-8 to ensure cross-platform compatibility
         gdf.to_file(gpkg_path, driver="GPKG", encoding="utf-8")
-        print(f"  ✔ Saved {len(gdf)} {geom_type}(s) to {rel_path(gpkg_path)}")
+        print(f"Saved {len(gdf)} {geom_type}(s) to {rel_path(gpkg_path)}")
 
     #print(f"✅ Finished '{feature_key}' for {region_name} in {time.time() - start_time:.2f} seconds.")
     return unsupported_counts
@@ -174,10 +179,10 @@ if __name__ == "__main__":
     for feature_key in osm_features_config:
         gpkg_path = os.path.join(region_dir, f"{feature_key}.gpkg")
         if os.path.exists(gpkg_path):
-            print(f"⏭️  Skipping '{feature_key}' for {region}: '{rel_path(gpkg_path)}' already exists.")
+            print(f">> Skipping '{feature_key}' for {region}: '{rel_path(gpkg_path)}' already exists.")
             continue
 
-        print(f"\n🔍 Processing {feature_key} in {region}")
+        print(f"\nProcessing {feature_key} in {region}")
         unsupported = osm_to_gpkg(
             region_name=region,
             polygon=polygon,
@@ -194,5 +199,5 @@ if __name__ == "__main__":
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(unsupported_summary, f, indent=2, ensure_ascii=False)
 
-    print(f"📄 Unsupported geometry summary saved to {rel_path(summary_path)}")
+    print(f"Unsupported geometry summary saved to {rel_path(summary_path)}")
 

@@ -1,5 +1,6 @@
 import os
 import geopandas as gpd
+import geonamescache
 import json
 import rasterio
 from rasterio.mask import mask
@@ -14,8 +15,28 @@ import io
 import fiona
 import urllib.parse
 from pyproj import CRS
+import pandas as pd
+import rasterstats 
 
 import logging
+
+def get_country_bounds_from_code(country_code):
+    """
+    Retrieve bounding box [minx, miny, maxx, maxy] for a country ISO2/ISO3 code.
+    """
+    gc = geonamescache.GeonamesCache()
+    countries = gc.get_countries()
+    code = country_code.upper()
+    country_info = countries.get(code)
+    if not country_info:
+        country_info = next(
+            (info for info in countries.values() if info.get("iso3", "").upper() == code),
+            None,
+        )
+    if not country_info:
+        raise ValueError(f"Country code '{country_code}' not found.")
+    bbox = country_info["bbox"]
+    return [bbox["minlng"], bbox["minlat"], bbox["maxlng"], bbox["maxlat"]]
 
 
 #download WDPA functions
@@ -96,7 +117,7 @@ def geopandas_clip_reproject(geopandas_file, gdf, target_crs_obj):
     return geopandas_clipped
 
 
-def clip_raster(input_raster_path, region_name_clean, gdf,output_dir):
+def clip_raster(input_raster_path, region_name_clean, gdf, output_dir, data_name=None):
     """
     Clips a raster to the geometry defined in a GeoDataFrame and saves the clipped raster.
 
@@ -130,8 +151,12 @@ def clip_raster(input_raster_path, region_name_clean, gdf,output_dir):
         ori_raster_crs = ori_raster_crs.replace(":", "")
         print(f'original raster CRS: {src.crs}')
         # Save the clipped raster as a new GeoTIFF file
-        with rasterio.open(os.path.join(output_dir, f'{filename}_{region_name_clean}_{ori_raster_crs}.tif'), 'w', **out_meta) as dest:
-            dest.write(out_image)
+        if data_name is None:
+            with rasterio.open(os.path.join(output_dir, f'{filename}_{region_name_clean}_{ori_raster_crs}.tif'), 'w', **out_meta) as dest:
+                dest.write(out_image)
+        else:
+            with rasterio.open(os.path.join(output_dir, f'{data_name}_{region_name_clean}_{ori_raster_crs}.tif'), 'w', **out_meta) as dest:
+                dest.write(out_image)
 
 
 
@@ -157,7 +182,8 @@ def clip_reproject_raster(input_raster_path, region_name_clean, gdf, data_name, 
     resampling_options = {
         'nearest': Resampling.nearest,
         'bilinear': Resampling.bilinear,
-        'cubic': Resampling.cubic
+        'cubic': Resampling.cubic,
+        'mode': Resampling.mode
     }
 
     dtype_options = {
@@ -229,7 +255,8 @@ def reproject_raster(input_raster_path, region_name_clean, target_crs, resamplin
     resampling_options = {
         'nearest': Resampling.nearest,
         'bilinear': Resampling.bilinear,
-        'cubic': Resampling.cubic
+        'cubic': Resampling.cubic,
+        'mode': Resampling.mode
     }
 
     dtype_options = {
@@ -295,7 +322,8 @@ def co_register(infile, match, resampling_method, outfile, dtype): #source: http
     resampling_options = {
         'nearest': Resampling.nearest,
         'bilinear': Resampling.bilinear,
-        'cubic': Resampling.cubic
+        'cubic': Resampling.cubic,
+        'mode': Resampling.mode
     }
 
     dtype_options = {
@@ -579,3 +607,16 @@ def rel_path(path: str) -> str:
         return os.path.relpath(path)
     except ValueError:
         return os.path.abspath(path)
+
+
+
+def landcover_stats_df(region_boundary, rasterFilePath, legend_dict, pixel_size):
+    stats = rasterstats.zonal_stats(region_boundary, rasterFilePath, categorical=True, category_map=legend_dict)
+    df = pd.DataFrame(stats)
+    df_long = df.melt(var_name='category', value_name='count')
+    df_long = df_long.groupby('category', as_index=False)['count'].sum()
+    category_to_code = {category: code for code, category in legend_dict.items()}
+    df_long['code'] = df_long['category'].map(category_to_code)
+    df_long['area_km2'] = round(df_long['count'] * pixel_size / 1e6, 0)
+    df_long = df_long[['category', 'code', 'count', 'area_km2']]
+    return df_long

@@ -62,6 +62,7 @@ log_scenario_run(region_name_clean, technology, scenario, log_dir=data_path)
 data_path_OSM = os.path.join(dirname, 'data', region_name_clean, 'OSM_Infrastructure')
 data_from_DEM = os.path.join(data_path, 'derived_from_DEM')
 OSM_source = config['OSM_source']
+raw_data_path = os.path.join(dirname, 'Raw_Spatial_Data')
 
 # Load the CRS
 # geo CRS
@@ -87,7 +88,7 @@ demRasterPath = os.path.join(data_path, f'DEM_{region_name_clean}_{global_crs_ta
 dem = 1 if os.path.isfile(demRasterPath) else 0
 slopeRasterPath = os.path.join(data_from_DEM, f'slope_{region_name_clean}_{global_crs_tag}{resampled}.tif')
 slope = 1 if os.path.isfile(slopeRasterPath) else 0
-terrain_ruggedness_path = os.path.join(data_path, f'TerrainRuggednessIndex_{region_name_clean}_{local_crs_tag}.tif')
+terrain_ruggedness_path = os.path.join(data_from_DEM, f'TerrainRuggednessIndex_{region_name_clean}_{local_crs_tag}.tif')
 terrain_ruggedness = 1 if os.path.isfile(terrain_ruggedness_path) else 0
 windRasterPath = os.path.join(data_path, f'wind_{region_name_clean}_{global_crs_tag}{resampled}.tif')
 wind = 1 if os.path.isfile(windRasterPath) else 0
@@ -103,6 +104,8 @@ coastlinesPath = os.path.join(data_path, f'goas_{region_name_clean}_{global_crs_
 coastlines = 1 if os.path.isfile(coastlinesPath) else 0
 protectedAreasPath = os.path.join(data_path, f"protected_areas_{config['protected_areas_source']}_{region_name_clean}_{global_crs_tag}.gpkg")
 protectedAreas = 1 if os.path.isfile(protectedAreasPath) else 0
+forestDensityPath = os.path.join(data_path, f'forest_density_{region_name_clean}_{global_crs_tag}.tif')
+forestDensity = 1 if os.path.isfile(forestDensityPath) else 0
 
 # OSM
 roadsPath = os.path.join(data_path_OSM, f'{OSM_source}_roads.gpkg')
@@ -303,6 +306,14 @@ if protectedAreas == 1 and param is not None:
 elif protectedAreas == 1 and param is None: info_list_not_selected.append("protectedAreas")
 elif protectedAreas == 0: info_list_not_available.append("protectedAreas")
 
+# Forest Density (optional; raster threshold like terrain ruggedness)
+param = tech_config.get('max_forest_density')
+if forestDensity == 1 and param is not None:
+    excluder.add_raster(forestDensityPath, codes=range(0,param), invert=True, crs=global_crs_obj)
+    info_list_exclusion.append(f"max forest density included: {param}")
+elif forestDensity == 1 and param is None: info_list_not_selected.append("forestDensity")
+elif forestDensity == 0: info_list_not_available.append("forestDensity")
+
 # Transmission Lines
 param = tech_config['transmission_lines_buffer']
 if transmission == 1 and param is not None:
@@ -381,15 +392,16 @@ with rasterio.open(landcoverPath, 'r+') as src:
 
 # calculate available areas
 print('\nperforming exclusions...')
-#masked, transform = shape_availability(region.geometry, excluder)
-masked, transform = shape_availability_reprojected(region.geometry, excluder, dst_transform=transform_lc, dst_crs=local_crs_obj, dst_shape=shape)
+masked, transform = shape_availability(region.geometry, excluder)
+#masked, transform = shape_availability_reprojected(region.geometry, excluder, dst_transform=transform_lc, dst_crs=local_crs_obj, dst_shape=shape)
 
 available_area = masked.sum() * excluder.res**2
 eligible_share = available_area / region.geometry.item().area
 
 # print results
-print(f"\nEligibility share: {eligible_share:.2%}")
-print(f'Available area: {available_area:.2} km²')
+print(f"\nThe eligibility share is: {eligible_share:.2%}")
+print(f'The available area is: {available_area:.2f} km²')
+
 if tech_config['deployment_density']:
     power_potential = available_area*1e-6 * tech_config['deployment_density']
     print(f'Power potential: {power_potential:.2} MW')
@@ -473,12 +485,13 @@ with open(os.path.join(output_dir, f"{region_name_clean}_{scenario}_{technology}
     for item in info_list_exclusion:
         file.write(f"{item}\n")
     file.write(f"\neligibility share: {eligible_share:.2%}")
-    file.write(f"\navailable area: {available_area:.2} m2")
+    file.write(f"\navailable area: {available_area:.2f} m2")
     file.write(f"\npower potential: {power_potential:.2} MW")
 
     if config['model_areas_filename']:
         # Write table from GeoDataFrame subset
         file.write("\n\nResults for model areas:\n")
+
         file.write(subset.to_string(index=False))
 
 # save info in JSON file for easier retrieval
@@ -504,3 +517,4 @@ with open(
     "w",
 ) as file:
     json.dump(info_data, file, indent=2)
+

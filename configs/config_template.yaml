@@ -1,28 +1,29 @@
 
-study_region_name: Elbe-Elster #all files and the results folder will be named like that
-country_code: DEU #3-letter ISO code; also needed for global wind atlas
+study_region_name: Elbe-Elster #[mandatory][string] all files and the results folder will be named like that
+country_code: DEU #[mandatory][string: 3-letter ISO code] also needed for global wind atlas
 
 
 #--define study region----------------------------------------------------------------------
 # use GADM boundary (https://gadm.org/maps.html)
-GADM_region_name: Elbe-Elster #exact name as in GADM file (NAME_{gadm_level})
-GADM_level: 2
+GADM_region_name: Elbe-Elster #[situational][string] exact name as in GADM file (NAME_{gadm_level})
+GADM_level: 2 #[situational][integer]
 # or use custom region (if file is passed, then this is used instead of the GADM definitions above)
-custom_study_area_filename: #if you need a dynamic filename, then use {region_name} in the filename which is replaced in the spatial_data_prep script e.g. gadm41_CHN_1_{region_name}.geojson
+custom_study_area_filename: #[situational][string] if you need a dynamic filename, then use {region_name} in the filename which is replaced in the spatial_data_prep script e.g. gadm41_CHN_1_{region_name}.geojson
 
 
 #--data retrieval----------------------------------------------------------------------
 # landcover
-landcover_source: openeo   #'file' or 'openeo' or leave empty to not download (DEM data depends on landcover data due to co-registering)
-resolution_landcover:  # for openeo download, in degress (EPSG4326); 0.008999280057498208 degrees is ca. 1000m at equator
-landcover_filename: #filename including file ending of local landcover file in Raw_Spatial_Data/landcover
+landcover_source: openeo   #[mandatory][string: file/openeo/ ] or leave empty to not download 
+resolution_landcover:  #[optional][float] set manual resolution for openeo download, in degress (EPSG4326); 0.008999280057498208 degrees is ca. 1000m at equator
+landcover_filename: #[situational][string] filename including file ending of local landcover file in Raw_Spatial_Data/landcover
 
 # DEM 
-DEM_filename: gebco_cutout.tif 
+DEM_filename: gebco_cutout.tif #[mandatory][string]
 
 # OSM data
-OSM_source: overpass #geofabrik or overpass
-OSM_folder_name:  #name of the folder within /Raw_Spatial_Data/OSM with all raw OSM shapefiles from Geofabrik; only needed if Geofabrik used as OSM source
+OSM_source: overpass #[mandatory][string: overpass/geofabrik]
+OSM_folder_name:  #[situational][string] name of the folder within /Raw_Spatial_Data/OSM with all raw OSM shapefiles from Geofabrik; only needed if Geofabrik used as OSM source
+force_osm_download: 0 #if set to 1, OSM data will be downloaded even if it is already present in the folder
 
 # OSM features
 railways: 1
@@ -43,13 +44,17 @@ coastlines: 1
 # wind and solar resources (GWA and GSA)
 wind_atlas: 1
 solar_atlas: 1
-country_name_solar_atlas: Germany # name of country, check https://globalsolaratlas.info/download  
-solar_atlas_measure: LTAym_YearlyMonthlyTotals # check if this measures exists under "GIS Data" on https://globalsolaratlas.info/download for your country
+country_name_solar_atlas: Germany #[mandatory][string] name of country, check https://globalsolaratlas.info/download  
+solar_atlas_measure: LTAym_YearlyMonthlyTotals #[situational][string] check if this measures exists under "GIS Data" on https://globalsolaratlas.info/download for your country
 
 # protected areas
-protected_areas_source: 0 #WDPA or file or 0
-wdpa_url: 
-protected_areas_filename:  #include file ending (.gpkg or .geojson), needs to be in EPSG4326
+protected_areas_source: 0 #[mandatory][WDPA/file/0]
+wdpa_url: #[mandatory][string]
+protected_areas_filename:  #[situational][string] include file ending (.gpkg or .geojson), needs to be in EPSG4326
+
+# forest density (optional; raster in Raw_Spatial_Data/Additional_layers)
+forest_density_source: 0  # keep 0 to disable; set filename below to use
+forest_density_filename:  # raster filename (e.g. .tif) placed in Raw_Spatial_Data/Additional_layers
 
 # compute helper datasets
 compute_substation_proximity: 1
@@ -59,8 +64,8 @@ compute_terrain_ruggedness: 1
 CRS_manual:  #set CRS instead of calculating local UTM zone
 
 # additional polygons and rasters
-additional_exclusion_polygons_folder_name: 
-additional_exclusion_rasters_folder_name: 
+additional_exclusion_polygons_folder_name: #[optional][string]
+additional_exclusion_rasters_folder_name: #[optional][string]
 
 
 #--exclusions----------------------------------------------------------------------
@@ -77,7 +82,7 @@ model_areas_filename:
 
 #--advanced details----------------------------------------------------------------------
 
-force_osm_download: 0 #if set to 1, OSM data will be downloaded even if it is already present in the folder
+
 
 # simplification tolerance for study area
 study_area:
@@ -117,8 +122,8 @@ osm_features_config:
   generators: ["power", *generators, "node"]
   roads: ["highway", *roads, "way"]
   railways: ["railway", *railways, "way"]
-  airports: ["aeroway", *airports, "way"]
-  waterbodies: ["natural", *waterbodies, "way"]
+  airports: ["aeroway", *airports, ["way", "relation"]]
+  waterbodies: ["natural", *waterbodies, ["way", "relation"]]
   military: ["landuse", *military, "way"]
 
 
@@ -131,73 +136,32 @@ Z: 50
 # world database of protected areas
 wdpa_consider_status: ["Adopted", "Designated", "Established", "Inscribed"] #all possibilies: "Adopted", "Designated", "Established", "Inscribed", "Proposed"
 
-# inclusion filter
-# EITHER use substations OR transmission (meters)
-substations_inclusion_buffer: 50000
-transmission_inclusion_buffer: 50000
-roads_inclusion_buffer: null
 
 
 #--Weather and energy data assumptions-------------------------------------------------------------
-weather_data_path: Raw_Spatial_Data 
+# Absolute path to external folder with weather data files, otherwise weather data will be stored in Raw_Spatial_Data/Weather_data
+#weather_external_data_path: "DRIVE:/PATH/TO/DATA/"
 
-weather_year: 1990 #[str(y) for y in range(1990,2020)]
+# Method to define the area for which energy profiles are created
+input_area: resource_grades # 'resource_grades' or 'available_land' or 'study_region'
 
-# Technology data
-tech: #"HeatDemand"
-tech_derate: 0.95
+# Year of weather data to be used for profile creation
+weather_year: 2015
 
-# Heat demand
-heat_demand_start_day: "01-10" #start day of heat demand profile, format: DD-MM
-heat_demand_end_day: "30-04" #end day of heat demand profile, format: DD-MM
-heat_demand_hour_shift: 8 # shift of heat demand profile in hours, such that daily heat demand average follows diurnal temperature profile
-heat_demand_constant: 0 # Corresponding to no temperature independent heat demand
-heat_demand_threshold: 15 # threshold for heat demand profile, in degrees Celsius
+# Download weather data within study region boundaries, or geographical bounds defined below
+weather_data_extend: study_region # 'study_region' or 'geo_bounds' or "country_code"
 
-#--Suitability cost assumptions----------------------------------------------------------------------
+# If 'geo_bounds' is selected, define the bounding box here (geographical coordinates)
+weather_data_geo_bounds:
+    'west': 73
+    'south': 15
+    'east': 135
+    'north': 54
 
-# Minimum area for resource grades (% of total available land area)
-min_area_rg: 0.05
+# Apply bias correction to ERA5 wind data based on Global Wind Atlas and Global Solar Atlas data
+weather_bias_correction:
+  onshorewind: true
+  offshorewind: true
+  solar: false
 
-# Cost tiers
-tiers: {
-    'Tier1': [0.5, 1.00],
-    'Tier2': [1.00, 1.50],
-    'Tier3': [1.50, 2.00],
-    'Tier4': [2.00, 2.50],
-    'Tier5': [2.50, 100],
-    }
-
-# Substation distance (meters)
-average_sub_dist: {
-    'onshorewind': 5000,
-    'solar': 5000
-}
-
-# Terrain modifier (terrain types defined by ruggedness ranges)
-terrain_modifier:
-# Plains
-  - range: [0, 150]
-    cost: {
-        'onshorewind': 1.02,
-        'solar': 0.99
-    }
-# Hills
-  - range: [150, 450]
-    cost: {
-        'onshorewind': 1.07,
-        'solar': 1.04
-    }
-# Mountains
-  - range: [450, 10000]
-    cost: {
-        'onshorewind': 1.17,
-        'solar': 1.09
-    }
-
-landcover_modifier: {
-    60: { # Bare / sparse vegetation
-        'onshorewind': 0.74,
-        'solar': 0.85
-    }
-}
+weather_bias_range: [0.5, 2.0] # Limit min and max bias correction factors to this range
