@@ -85,7 +85,36 @@ In the `config.yaml` file you can configure the data preprocessing and the land 
 In the `config.yaml` file you can choose which data you want to consider in the preprocessing.
 You also have to select your study region. When using the automatic download from [gadm.org](https://gadm.org/), you have to specify the name of the region (region_name) and the GADM level as it is used by gadm.org. Ideally you download the geopackage of the country you are interested in from [gadm.org](gadm.org) and load it into QGIS to find the right `gadm_level` and `region_name`. For some countries there are troubles downloading administrative boundaries from gadm.org. Then you must use your own custom study area file instead.
 Finally, you have to specify the land exclusions and buffer zones.
-At the bottom of the `config.yaml` file you can find the settings for advanced details. 
+At the bottom of the `config.yaml` file you can find the settings for advanced details.
+
+### Interactive configuration editor
+
+For the China-specific templates (`configs/config_template_china.yaml`,
+`configs/onshorewind_template_china.yaml`, and
+`configs/solar_template_china.yaml`) you can use the optional Streamlit
+application `config_editor_app.py` to browse and edit the YAML files without
+leaving your browser.
+
+1. Install the optional dependencies (Streamlit and `ruamel.yaml`) in your
+   active environment:
+
+   ```bash
+   pip install streamlit ruamel.yaml
+   ```
+
+2. From the repository root start the editor:
+
+   ```bash
+   streamlit run config_editor_app.py
+   ```
+
+   The sidebar lets you pick one of the templates and filter parameters by
+   name or value. Scalar fields are exposed as text boxes or checkboxes, while
+   lists and nested mappings can either be edited through dedicated widgets or
+   via an inline YAML editor. The “Save changes” button writes the updated
+   configuration back to disk and a downloadable copy of the current YAML
+   content is always available. Unsaved changes are highlighted together with a
+   diff preview to help you review modifications before committing them.
 
 
 ## 3. Spatial data preparation

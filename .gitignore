@@ -43,6 +43,7 @@
 !configs/technologies/LW_utility_farm.yaml
 !configs/technologies/CSi.yaml
 !spatial_data_prep.py
+!config_editor_app.py
 !Exclusion.py
 !data_explore.ipynb
 !GLAES_Aachen.ipynb
