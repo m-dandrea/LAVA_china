@@ -1,5 +1,5 @@
-"""Tkinter-based editor for LAVA China configuration templates."""
 
+"""Tkinter-based editor for LAVA China configuration templates."""
 from __future__ import annotations
 
 import copy
@@ -17,7 +17,6 @@ from typing import Any
 import tkinter as tk
 from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
-
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.scalarstring import ScalarString
@@ -31,7 +30,6 @@ CONFIG_FILES = {
 }
 
 SNAKEMAKE_SNAKEFILE = REPO_ROOT / "snakemake" / "Snakefile_short_short"
-
 
 def _initialise_yaml() -> tuple[YAML, YAML, YAML]:
     loader = YAML(typ="rt")
@@ -84,7 +82,6 @@ def dump_yaml_to_string(data: Any) -> str:
     YAML_DUMPER.dump(data, buffer)
     return buffer.getvalue()
 
-
 def convert_text_to_value(text: str, original: Any) -> Any:
     stripped = text.strip()
     if stripped.lower() in {"null", "none", "~"}:
@@ -131,7 +128,6 @@ class ConfigEditorApp:
         self.snakemake_text: ScrolledText | None = None
         self.snakemake_close_button: ttk.Button | None = None
         self.snakemake_running = False
-
         self._create_widgets()
         self._populate_file_choices()
         self._load_initial_file()
@@ -179,6 +175,7 @@ class ConfigEditorApp:
 
         ttk.Label(self.sidebar, text="Filter parameters", font=("TkDefaultFont", 11, "bold")).grid(
             row=8, column=0, sticky="w"
+
         )
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda *_: self.rebuild_tree())
@@ -189,11 +186,13 @@ class ConfigEditorApp:
         )
         self.clear_filter_button.grid(row=10, column=0, sticky="ew", pady=(4, 0))
 
+
         self.unsaved_var = tk.StringVar()
         self.unsaved_label = ttk.Label(
             self.sidebar, textvariable=self.unsaved_var, foreground="#b35c00", wraplength=220
         )
         self.unsaved_label.grid(row=11, column=0, sticky="sw", pady=(16, 0))
+
 
         self.main_frame = ttk.Frame(self.root, padding=(0, 10, 12, 10))
         self.main_frame.grid(row=0, column=1, sticky="nsew")
@@ -840,6 +839,7 @@ class ConfigEditorApp:
         self.snakemake_close_button = None
 
     # ------------------------------------------------------------------
+
     # Diff and status helpers
     def show_diff(self) -> None:
         state = self.current_state
