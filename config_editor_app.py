@@ -1,4 +1,6 @@
+
 """Tkinter-based editor for LAVA China configuration templates."""
+
 
 from __future__ import annotations
 
@@ -13,7 +15,6 @@ from typing import Any
 import tkinter as tk
 from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
-
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.scalarstring import ScalarString
@@ -60,6 +61,7 @@ class NodeRef:
     path: tuple[PathElement, ...]
 
 
+
 def load_config(path: Path) -> CommentedMap:
     with path.open("r", encoding="utf-8") as stream:
         data = YAML_LOADER.load(stream)
@@ -77,7 +79,6 @@ def dump_yaml_to_string(data: Any) -> str:
     buffer = io.StringIO()
     YAML_DUMPER.dump(data, buffer)
     return buffer.getvalue()
-
 
 def convert_text_to_value(text: str, original: Any) -> Any:
     stripped = text.strip()
@@ -106,7 +107,6 @@ def convert_text_to_value(text: str, original: Any) -> Any:
     if isinstance(original, str):
         return text
     return stripped if stripped else text
-
 
 class ConfigEditorApp:
     def __init__(self, root: tk.Tk) -> None:
