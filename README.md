@@ -91,30 +91,33 @@ At the bottom of the `config.yaml` file you can find the settings for advanced d
 
 For the China-specific templates (`configs/config_template_china.yaml`,
 `configs/onshorewind_template_china.yaml`, and
-`configs/solar_template_china.yaml`) you can use the optional Streamlit
-application `config_editor_app.py` to browse and edit the YAML files without
-leaving your browser.
+`configs/solar_template_china.yaml`) you can use the optional Tkinter
+application `config_editor_app.py` to browse and edit the YAML files with a
+desktop GUI.
 
-1. Install the optional dependencies (Streamlit and `ruamel.yaml`) in your
-   active environment:
-
-   ```bash
-   pip install streamlit ruamel.yaml
-   ```
-
-2. From the repository root start the editor:
+1. Ensure the optional dependency `ruamel.yaml` is installed in your active
+   environment (it is included in the default `requirements.yaml`, but can
+   also be added manually):
 
    ```bash
-   streamlit run config_editor_app.py
+   pip install ruamel.yaml
    ```
 
-   The sidebar lets you pick one of the templates and filter parameters by
-   name or value. Scalar fields are exposed as text boxes or checkboxes, while
-   lists and nested mappings can either be edited through dedicated widgets or
-   via an inline YAML editor. The “Save changes” button writes the updated
-   configuration back to disk and a downloadable copy of the current YAML
-   content is always available. Unsaved changes are highlighted together with a
-   diff preview to help you review modifications before committing them.
+   On Linux distributions where Tkinter is not bundled with Python you may
+   need to install it separately, e.g. `sudo apt-get install python3-tk`.
+
+2. Launch the editor from the repository root:
+
+   ```bash
+   python config_editor_app.py
+   ```
+
+   The left-hand panel lets you choose one of the configuration templates and
+   filter parameters by name or value. Selecting an entry opens an editing panel
+   where booleans are toggled with checkboxes, scalar values can be typed
+   directly, and lists or nested mappings can be edited through the built-in
+   YAML dialog. Buttons at the top handle saving, reloading, reverting, and
+   previewing unified diffs before writing changes back to disk.
 
 
 ## 3. Spatial data preparation
