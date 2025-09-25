@@ -31,8 +31,8 @@ CONFIG_FILES = {
 }
 
 SNAKEMAKE_SNAKEFILE = REPO_ROOT / "snakemake" / "Snakefile_short_short"
+DEFAULT_SNAKEMAKE_COMMAND = f"snakemake --snakefile {SNAKEMAKE_SNAKEFILE} --cores 4 --resources openeo_req=1"
 
-DEFAULT_SNAKEMAKE_COMMAND = f"snakemake --snakefile {SNAKEMAKE_SNAKEFILE} --cores 1"
 
 def _initialise_yaml() -> tuple[YAML, YAML, YAML]:
     loader = YAML(typ="rt")
@@ -84,6 +84,7 @@ def dump_yaml_to_string(data: Any) -> str:
     buffer = io.StringIO()
     YAML_DUMPER.dump(data, buffer)
     return buffer.getvalue()
+
 
 def convert_text_to_value(text: str, original: Any) -> Any:
     stripped = text.strip()
@@ -197,7 +198,6 @@ class ConfigEditorApp:
         self.unsaved_label = ttk.Label(
             self.sidebar, textvariable=self.unsaved_var, foreground="#b35c00", wraplength=220
         )
-
         self.unsaved_label.grid(row=13, column=0, sticky="sw", pady=(16, 0))
         self.main_frame = ttk.Frame(self.root, padding=(0, 10, 12, 10))
         self.main_frame.grid(row=0, column=1, sticky="nsew")
@@ -764,8 +764,8 @@ class ConfigEditorApp:
 
         self.snakemake_running = True
         self.run_snakemake_button.state(["disabled"])
-        self.snakemake_queue = queue.Queue()
-
+        queue_obj: queue.Queue[tuple[str, Any]] = queue.Queue()
+        self.snakemake_queue = queue_obj
         dialog = tk.Toplevel(self.root)
         dialog.title("Running Snakemake workflow")
         dialog.geometry("800x480")
@@ -793,7 +793,7 @@ class ConfigEditorApp:
 
         command_args = list(command_args)
 
-        def worker() -> None:
+        def worker(local_queue: queue.Queue[tuple[str, Any]] = queue_obj) -> None:
             try:
                 process = subprocess.Popen(
                     command_args,
@@ -804,23 +804,19 @@ class ConfigEditorApp:
                     bufsize=1,
                 )
             except FileNotFoundError:
-                if self.snakemake_queue is not None:
-                    self.snakemake_queue.put(("output", f"Command '{executable}' not found.\\n"))
-                    self.snakemake_queue.put(("exit", 127))
+                local_queue.put(("output", f"Command '{executable}' not found.\n"))
+                local_queue.put(("exit", 127))
                 return
 
             if process.stdout is None:
-                if self.snakemake_queue is not None:
-                    self.snakemake_queue.put(("output", "Failed to capture Snakemake output.\n"))
-                    self.snakemake_queue.put(("exit", process.wait()))
+                local_queue.put(("output", "Failed to capture Snakemake output.\n"))
+                local_queue.put(("exit", process.wait()))
                 return
 
             for line in process.stdout:
-                if self.snakemake_queue is not None:
-                    self.snakemake_queue.put(("output", line))
+                local_queue.put(("output", line))
             return_code = process.wait()
-            if self.snakemake_queue is not None:
-                self.snakemake_queue.put(("exit", return_code))
+            local_queue.put(("exit", return_code))
 
         self.snakemake_thread = threading.Thread(target=worker, daemon=True)
         self.snakemake_thread.start()
@@ -828,7 +824,6 @@ class ConfigEditorApp:
         self.set_status("Running Snakemake workflow…")
 
     def _poll_snakemake_queue(self) -> None:
-
         queue_obj = self.snakemake_queue
         if queue_obj is None:
             return
