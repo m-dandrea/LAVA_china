@@ -1,5 +1,5 @@
-
 """Tkinter-based editor for LAVA China configuration templates."""
+
 from __future__ import annotations
 
 import copy
@@ -7,6 +7,7 @@ import difflib
 import io
 import numbers
 import queue
+import shlex
 import shutil
 import subprocess
 import threading
@@ -30,6 +31,8 @@ CONFIG_FILES = {
 }
 
 SNAKEMAKE_SNAKEFILE = REPO_ROOT / "snakemake" / "Snakefile_short_short"
+
+DEFAULT_SNAKEMAKE_COMMAND = f"snakemake --snakefile {SNAKEMAKE_SNAKEFILE} --cores 1"
 
 def _initialise_yaml() -> tuple[YAML, YAML, YAML]:
     loader = YAML(typ="rt")
@@ -128,6 +131,7 @@ class ConfigEditorApp:
         self.snakemake_text: ScrolledText | None = None
         self.snakemake_close_button: ttk.Button | None = None
         self.snakemake_running = False
+        self.snakemake_command_var = tk.StringVar(value=DEFAULT_SNAKEMAKE_COMMAND)
         self._create_widgets()
         self._populate_file_choices()
         self._load_initial_file()
@@ -141,7 +145,7 @@ class ConfigEditorApp:
 
         self.sidebar = ttk.Frame(self.root, padding=(12, 10))
         self.sidebar.grid(row=0, column=0, sticky="ns")
-        self.sidebar.rowconfigure(8, weight=1)
+        self.sidebar.rowconfigure(13, weight=1)
 
         ttk.Label(self.sidebar, text="Configuration file", font=("TkDefaultFont", 11, "bold")).grid(
             row=0, column=0, sticky="w"
@@ -170,30 +174,31 @@ class ConfigEditorApp:
             self.sidebar, text="Run Snakemake workflow", command=self.run_snakemake_workflow
         )
         self.run_snakemake_button.grid(row=6, column=0, sticky="ew", pady=(8, 0))
+        ttk.Label(self.sidebar, text="Snakemake command").grid(row=7, column=0, sticky="w", pady=(8, 0))
+        self.snakemake_command_entry = ttk.Entry(
+            self.sidebar, textvariable=self.snakemake_command_var
+        )
+        self.snakemake_command_entry.grid(row=8, column=0, sticky="ew")
 
-        ttk.Separator(self.sidebar).grid(row=7, column=0, sticky="ew", pady=12)
+        ttk.Separator(self.sidebar).grid(row=9, column=0, sticky="ew", pady=12)
 
         ttk.Label(self.sidebar, text="Filter parameters", font=("TkDefaultFont", 11, "bold")).grid(
-            row=8, column=0, sticky="w"
-
+            row=10, column=0, sticky="w"
         )
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda *_: self.rebuild_tree())
         self.search_entry = ttk.Entry(self.sidebar, textvariable=self.search_var)
-        self.search_entry.grid(row=9, column=0, sticky="ew", pady=(4, 0))
+        self.search_entry.grid(row=11, column=0, sticky="ew", pady=(4, 0))
         self.clear_filter_button = ttk.Button(
             self.sidebar, text="Clear filter", command=lambda: self.search_var.set("")
         )
-        self.clear_filter_button.grid(row=10, column=0, sticky="ew", pady=(4, 0))
-
-
+        self.clear_filter_button.grid(row=12, column=0, sticky="ew", pady=(4, 0))
         self.unsaved_var = tk.StringVar()
         self.unsaved_label = ttk.Label(
             self.sidebar, textvariable=self.unsaved_var, foreground="#b35c00", wraplength=220
         )
-        self.unsaved_label.grid(row=11, column=0, sticky="sw", pady=(16, 0))
 
-
+        self.unsaved_label.grid(row=13, column=0, sticky="sw", pady=(16, 0))
         self.main_frame = ttk.Frame(self.root, padding=(0, 10, 12, 10))
         self.main_frame.grid(row=0, column=1, sticky="nsew")
         self.main_frame.columnconfigure(0, weight=1)
@@ -696,18 +701,64 @@ class ConfigEditorApp:
                 self.snakemake_dialog.lift()
             return
 
-        snakefile = SNAKEMAKE_SNAKEFILE
-        if not snakefile.exists():
+        command_text = self.snakemake_command_var.get().strip()
+        if not command_text:
             messagebox.showerror(
-                "Snakefile not found",
-                f"Could not find {snakefile.relative_to(REPO_ROOT)}. Make sure the workflow files are available.",
+                "Invalid command",
+                "Please provide the Snakemake command to execute.",
             )
             return
 
-        if shutil.which("snakemake") is None:
+        try:
+            command_args = shlex.split(command_text)
+        except ValueError as exc:
             messagebox.showerror(
-                "Snakemake not available",
-                "The 'snakemake' command was not found in the current environment. Install Snakemake and try again.",
+                "Invalid command",
+                f"Could not parse the Snakemake command: {exc}",
+            )
+            return
+
+        if not command_args:
+            messagebox.showerror(
+                "Invalid command",
+                "The Snakemake command is empty after parsing.",
+            )
+            return
+
+        executable = command_args[0]
+        if shutil.which(executable) is None:
+            messagebox.showerror(
+                "Command not available",
+                f"The command '{executable}' was not found in the current environment. Check your PATH and try again.",
+            )
+            return
+
+        snakefile_path: Path | None = None
+        for index, argument in enumerate(command_args):
+            if argument in {"--snakefile", "-s"}:
+                if index + 1 >= len(command_args):
+                    messagebox.showerror(
+                        "Invalid command",
+                        "The Snakemake command is missing a value after the --snakefile/-s option.",
+                    )
+                    return
+                candidate = Path(command_args[index + 1])
+                if not candidate.is_absolute():
+                    candidate = (REPO_ROOT / candidate).resolve()
+                snakefile_path = candidate
+                break
+
+        if snakefile_path is None:
+            snakefile_path = SNAKEMAKE_SNAKEFILE
+
+        if not snakefile_path.exists():
+            try:
+                display_path = snakefile_path.relative_to(REPO_ROOT)
+            except ValueError:
+                display_path = snakefile_path
+            messagebox.showerror(
+                "Snakefile not found",
+                f"Could not find {display_path}. Make sure the workflow files are available.",
             )
             return
 
@@ -723,7 +774,7 @@ class ConfigEditorApp:
         dialog.protocol("WM_DELETE_WINDOW", self._on_snakemake_close_requested)
         self.snakemake_dialog = dialog
 
-        ttk.Label(dialog, text="Executing snakemake/Snakefile_short_short…").pack(
+        ttk.Label(dialog, text=f"Executing: {command_text}", wraplength=760).pack(
             anchor="w", padx=12, pady=(12, 4)
         )
         text_widget = ScrolledText(dialog, wrap="none", state="disabled")
@@ -740,11 +791,12 @@ class ConfigEditorApp:
         )
         self.snakemake_close_button.pack(side="right")
 
+        command_args = list(command_args)
+
         def worker() -> None:
-            cmd = ["snakemake", "--snakefile", str(snakefile), "--cores", "1"]
             try:
                 process = subprocess.Popen(
-                    cmd,
+                    command_args,
                     cwd=str(REPO_ROOT),
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
@@ -753,7 +805,7 @@ class ConfigEditorApp:
                 )
             except FileNotFoundError:
                 if self.snakemake_queue is not None:
-                    self.snakemake_queue.put(("output", "Snakemake executable not found.\n"))
+                    self.snakemake_queue.put(("output", f"Command '{executable}' not found.\\n"))
                     self.snakemake_queue.put(("exit", 127))
                 return
 
@@ -776,15 +828,18 @@ class ConfigEditorApp:
         self.set_status("Running Snakemake workflow…")
 
     def _poll_snakemake_queue(self) -> None:
-        if self.snakemake_queue is None:
+
+        queue_obj = self.snakemake_queue
+        if queue_obj is None:
             return
         try:
             while True:
-                kind, payload = self.snakemake_queue.get_nowait()
+                kind, payload = queue_obj.get_nowait()
                 if kind == "output":
                     self._append_snakemake_output(str(payload))
                 elif kind == "exit":
                     self._finish_snakemake(int(payload))
+                    break
         except queue.Empty:
             pass
 
@@ -839,7 +894,6 @@ class ConfigEditorApp:
         self.snakemake_close_button = None
 
     # ------------------------------------------------------------------
-
     # Diff and status helpers
     def show_diff(self) -> None:
         state = self.current_state

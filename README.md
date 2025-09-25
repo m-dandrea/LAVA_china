@@ -120,11 +120,14 @@ desktop GUI.
    previewing unified diffs before writing changes back to disk.
 
    A "Run Snakemake workflow" button is also available to execute the
-   `snakemake/Snakefile_short_short` pipeline with a single click from the GUI.
-   Install [Snakemake](https://snakemake.readthedocs.io/en/stable/) in the same
+   `snakemake/Snakefile_short_short` pipeline. Install
+   [Snakemake](https://snakemake.readthedocs.io/en/stable/) in the same
    environment and ensure the `snakemake/Snakefile_short_short` file exists in
-   the repository before launching the workflow. The GUI displays the live
-   Snakemake log output and reports whether the run finishes successfully.
+   the repository before launching the workflow. The command entry beneath the
+   button defaults to `snakemake --snakefile snakemake/Snakefile_short_short --cores 1`
+   but can be edited to change the number of cores or add additional Snakemake
+   options before starting the run. The GUI displays the live Snakemake log
+   output and reports whether the run finishes successfully.
 
 
 
