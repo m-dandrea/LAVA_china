@@ -18,7 +18,6 @@ from typing import Any
 import tkinter as tk
 from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
-
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.scalarstring import ScalarString
@@ -32,7 +31,7 @@ CONFIG_FILES = {
 }
 
 SNAKEMAKE_SNAKEFILE = REPO_ROOT / "snakemake" / "Snakefile_short_short"
-DEFAULT_SNAKEMAKE_COMMAND = f"snakemake --snakefile {SNAKEMAKE_SNAKEFILE} --cores 1"
+DEFAULT_SNAKEMAKE_COMMAND = f"snakemake --snakefile {SNAKEMAKE_SNAKEFILE} --cores 4 --resources openeo_req=1"
 
 
 def _initialise_yaml() -> tuple[YAML, YAML, YAML]:
@@ -134,7 +133,6 @@ class ConfigEditorApp:
         self.snakemake_close_button: ttk.Button | None = None
         self.snakemake_running = False
         self.snakemake_command_var = tk.StringVar(value=DEFAULT_SNAKEMAKE_COMMAND)
-
         self._create_widgets()
         self._populate_file_choices()
         self._load_initial_file()
@@ -196,13 +194,11 @@ class ConfigEditorApp:
             self.sidebar, text="Clear filter", command=lambda: self.search_var.set("")
         )
         self.clear_filter_button.grid(row=12, column=0, sticky="ew", pady=(4, 0))
-
         self.unsaved_var = tk.StringVar()
         self.unsaved_label = ttk.Label(
             self.sidebar, textvariable=self.unsaved_var, foreground="#b35c00", wraplength=220
         )
         self.unsaved_label.grid(row=13, column=0, sticky="sw", pady=(16, 0))
-
         self.main_frame = ttk.Frame(self.root, padding=(0, 10, 12, 10))
         self.main_frame.grid(row=0, column=1, sticky="nsew")
         self.main_frame.columnconfigure(0, weight=1)
@@ -770,7 +766,6 @@ class ConfigEditorApp:
         self.run_snakemake_button.state(["disabled"])
         queue_obj: queue.Queue[tuple[str, Any]] = queue.Queue()
         self.snakemake_queue = queue_obj
-
         dialog = tk.Toplevel(self.root)
         dialog.title("Running Snakemake workflow")
         dialog.geometry("800x480")

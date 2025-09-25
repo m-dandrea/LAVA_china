@@ -582,16 +582,7 @@ if consider_forest_density == 1:
     else:
         # clip and reproject to local CRS
         try:
-            clip_reproject_raster(
-                raw_forest_density_path,
-                region_name_clean,
-                region,
-                'forest_density',
-                local_crs_obj,
-                'nearest',
-                'int32',
-                output_dir
-            )
+            clip_raster(raw_forest_density_path, region_name_clean, region, output_dir, 'forest_density')
         except Exception as e:
             logging.warning(f"Failed to clip/reproject forest density raster: {e}")
 
@@ -605,7 +596,9 @@ if consider_wind_atlas == 1:
         download_global_wind_atlas(country_code=country_code, height=100, data_path=data_path) #global wind atlas apparently uses 3 letter ISO code
     else:
         print(f"Global wind atlas data already downloaded: {rel_path(wind_raster_filePath)}")
-        
+
+    #clip raster
+    # clip_raster(wind_raster_filePath, region_name_clean, region, output_dir, 'wind')
     #clip and reproject to local CRS (also saves file which is only clipped but not reprojected)
     clip_reproject_raster(wind_raster_filePath, region_name_clean, region, 'wind', local_crs_obj, 'nearest', 'float32', output_dir)
     #co-register raster to land cover
@@ -628,6 +621,8 @@ if consider_solar_atlas == 1:
         print(f"Global solar atlas data already downloaded: {rel_path(solar_atlas_folder_path)}")
     
     solar_raster_filePath = os.path.join(wind_solar_atlas_folder, solar_atlas_folder_path, os.listdir(solar_atlas_folder_path)[0], 'GHI.tif')
+    #clip raster
+    # clip_raster(solar_raster_filePath, region_name_clean, region, output_dir, 'solar')
     #clip and reproject to local CRS (also saves file which is only clipped but not reprojected)
     clip_reproject_raster(solar_raster_filePath, region_name_clean, region, 'solar', local_crs_obj, 'nearest', 'float32', output_dir)
     #co-register raster to land cover
