@@ -119,6 +119,14 @@ desktop GUI.
    YAML dialog. Buttons at the top handle saving, reloading, reverting, and
    previewing unified diffs before writing changes back to disk.
 
+   A "Run Snakemake workflow" button is also available to execute the
+   `snakemake/Snakefile_short_short` pipeline with a single click from the GUI.
+   Install [Snakemake](https://snakemake.readthedocs.io/en/stable/) in the same
+   environment and ensure the `snakemake/Snakefile_short_short` file exists in
+   the repository before launching the workflow. The GUI displays the live
+   Snakemake log output and reports whether the run finishes successfully.
+
+
 
 ## 3. Spatial data preparation
 The script `spatial_data_prep.py` performs multiple data preprocessing steps to facilitate the land analysis and land eligibility study:

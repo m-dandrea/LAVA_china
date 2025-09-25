@@ -1,13 +1,15 @@
 
 """Tkinter-based editor for LAVA China configuration templates."""
-
-
 from __future__ import annotations
 
 import copy
 import difflib
 import io
 import numbers
+import queue
+import shutil
+import subprocess
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -27,6 +29,7 @@ CONFIG_FILES = {
     "Solar template (solar_template_china.yaml)": CONFIG_DIR / "solar_template_china.yaml",
 }
 
+SNAKEMAKE_SNAKEFILE = REPO_ROOT / "snakemake" / "Snakefile_short_short"
 
 def _initialise_yaml() -> tuple[YAML, YAML, YAML]:
     loader = YAML(typ="rt")
@@ -59,7 +62,6 @@ class NodeRef:
     key: Any | None
     value: Any
     path: tuple[PathElement, ...]
-
 
 
 def load_config(path: Path) -> CommentedMap:
@@ -108,6 +110,7 @@ def convert_text_to_value(text: str, original: Any) -> Any:
         return text
     return stripped if stripped else text
 
+
 class ConfigEditorApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -119,7 +122,12 @@ class ConfigEditorApp:
         self.selected_node: NodeRef | None = None
         self.node_index: dict[str, NodeRef] = {}
         self.path_index: dict[tuple[PathElement, ...], str] = {}
-
+        self.snakemake_thread: threading.Thread | None = None
+        self.snakemake_queue: queue.Queue[tuple[str, Any]] | None = None
+        self.snakemake_dialog: tk.Toplevel | None = None
+        self.snakemake_text: ScrolledText | None = None
+        self.snakemake_close_button: ttk.Button | None = None
+        self.snakemake_running = False
         self._create_widgets()
         self._populate_file_choices()
         self._load_initial_file()
@@ -133,7 +141,7 @@ class ConfigEditorApp:
 
         self.sidebar = ttk.Frame(self.root, padding=(12, 10))
         self.sidebar.grid(row=0, column=0, sticky="ns")
-        self.sidebar.rowconfigure(7, weight=1)
+        self.sidebar.rowconfigure(8, weight=1)
 
         ttk.Label(self.sidebar, text="Configuration file", font=("TkDefaultFont", 11, "bold")).grid(
             row=0, column=0, sticky="w"
@@ -158,26 +166,33 @@ class ConfigEditorApp:
         self.save_button.grid(row=4, column=0, sticky="ew", pady=(12, 0))
         self.diff_button = ttk.Button(self.sidebar, text="Show YAML diff", command=self.show_diff)
         self.diff_button.grid(row=5, column=0, sticky="ew", pady=(4, 0))
+        self.run_snakemake_button = ttk.Button(
+            self.sidebar, text="Run Snakemake workflow", command=self.run_snakemake_workflow
+        )
+        self.run_snakemake_button.grid(row=6, column=0, sticky="ew", pady=(8, 0))
 
-        ttk.Separator(self.sidebar).grid(row=6, column=0, sticky="ew", pady=12)
+        ttk.Separator(self.sidebar).grid(row=7, column=0, sticky="ew", pady=12)
 
         ttk.Label(self.sidebar, text="Filter parameters", font=("TkDefaultFont", 11, "bold")).grid(
-            row=7, column=0, sticky="w"
+            row=8, column=0, sticky="w"
+
         )
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda *_: self.rebuild_tree())
         self.search_entry = ttk.Entry(self.sidebar, textvariable=self.search_var)
-        self.search_entry.grid(row=8, column=0, sticky="ew", pady=(4, 0))
+        self.search_entry.grid(row=9, column=0, sticky="ew", pady=(4, 0))
         self.clear_filter_button = ttk.Button(
             self.sidebar, text="Clear filter", command=lambda: self.search_var.set("")
         )
-        self.clear_filter_button.grid(row=9, column=0, sticky="ew", pady=(4, 0))
+        self.clear_filter_button.grid(row=10, column=0, sticky="ew", pady=(4, 0))
+
 
         self.unsaved_var = tk.StringVar()
         self.unsaved_label = ttk.Label(
             self.sidebar, textvariable=self.unsaved_var, foreground="#b35c00", wraplength=220
         )
-        self.unsaved_label.grid(row=10, column=0, sticky="sw", pady=(16, 0))
+        self.unsaved_label.grid(row=11, column=0, sticky="sw", pady=(16, 0))
+
 
         self.main_frame = ttk.Frame(self.root, padding=(0, 10, 12, 10))
         self.main_frame.grid(row=0, column=1, sticky="nsew")
@@ -670,6 +685,161 @@ class ConfigEditorApp:
         self.set_status(f"Copied path {text} to clipboard")
 
     # ------------------------------------------------------------------
+    # Snakemake integration
+    def run_snakemake_workflow(self) -> None:
+        if self.snakemake_running:
+            messagebox.showinfo(
+                "Snakemake running",
+                "A Snakemake workflow is already running. The output window has been brought to the front.",
+            )
+            if self.snakemake_dialog is not None:
+                self.snakemake_dialog.lift()
+            return
+
+        snakefile = SNAKEMAKE_SNAKEFILE
+        if not snakefile.exists():
+            messagebox.showerror(
+                "Snakefile not found",
+                f"Could not find {snakefile.relative_to(REPO_ROOT)}. Make sure the workflow files are available.",
+            )
+            return
+
+        if shutil.which("snakemake") is None:
+            messagebox.showerror(
+                "Snakemake not available",
+                "The 'snakemake' command was not found in the current environment. Install Snakemake and try again.",
+            )
+            return
+
+        self.snakemake_running = True
+        self.run_snakemake_button.state(["disabled"])
+        self.snakemake_queue = queue.Queue()
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Running Snakemake workflow")
+        dialog.geometry("800x480")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.protocol("WM_DELETE_WINDOW", self._on_snakemake_close_requested)
+        self.snakemake_dialog = dialog
+
+        ttk.Label(dialog, text="Executing snakemake/Snakefile_short_short…").pack(
+            anchor="w", padx=12, pady=(12, 4)
+        )
+        text_widget = ScrolledText(dialog, wrap="none", state="disabled")
+        text_widget.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        self.snakemake_text = text_widget
+
+        button_frame = ttk.Frame(dialog)
+        button_frame.pack(fill="x", padx=12, pady=(0, 12))
+        self.snakemake_close_button = ttk.Button(
+            button_frame,
+            text="Close",
+            command=self._close_snakemake_dialog,
+            state="disabled",
+        )
+        self.snakemake_close_button.pack(side="right")
+
+        def worker() -> None:
+            cmd = ["snakemake", "--snakefile", str(snakefile), "--cores", "1"]
+            try:
+                process = subprocess.Popen(
+                    cmd,
+                    cwd=str(REPO_ROOT),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                )
+            except FileNotFoundError:
+                if self.snakemake_queue is not None:
+                    self.snakemake_queue.put(("output", "Snakemake executable not found.\n"))
+                    self.snakemake_queue.put(("exit", 127))
+                return
+
+            if process.stdout is None:
+                if self.snakemake_queue is not None:
+                    self.snakemake_queue.put(("output", "Failed to capture Snakemake output.\n"))
+                    self.snakemake_queue.put(("exit", process.wait()))
+                return
+
+            for line in process.stdout:
+                if self.snakemake_queue is not None:
+                    self.snakemake_queue.put(("output", line))
+            return_code = process.wait()
+            if self.snakemake_queue is not None:
+                self.snakemake_queue.put(("exit", return_code))
+
+        self.snakemake_thread = threading.Thread(target=worker, daemon=True)
+        self.snakemake_thread.start()
+        self.root.after(100, self._poll_snakemake_queue)
+        self.set_status("Running Snakemake workflow…")
+
+    def _poll_snakemake_queue(self) -> None:
+        if self.snakemake_queue is None:
+            return
+        try:
+            while True:
+                kind, payload = self.snakemake_queue.get_nowait()
+                if kind == "output":
+                    self._append_snakemake_output(str(payload))
+                elif kind == "exit":
+                    self._finish_snakemake(int(payload))
+        except queue.Empty:
+            pass
+
+        if self.snakemake_running:
+            self.root.after(100, self._poll_snakemake_queue)
+
+    def _append_snakemake_output(self, text: str) -> None:
+        widget = self.snakemake_text
+        if widget is None:
+            return
+        widget.configure(state="normal")
+        widget.insert("end", text)
+        widget.see("end")
+        widget.configure(state="disabled")
+
+    def _finish_snakemake(self, exit_code: int) -> None:
+        if not self.snakemake_running:
+            return
+
+        self.snakemake_running = False
+        self.run_snakemake_button.state(["!disabled"])
+        if self.snakemake_close_button is not None:
+            self.snakemake_close_button.state(["!disabled"])
+
+        self._append_snakemake_output(f"\nProcess completed with exit code {exit_code}.\n")
+        if exit_code == 0:
+            self.set_status("Snakemake workflow finished successfully.")
+        else:
+            self.set_status(f"Snakemake workflow failed (exit code {exit_code}).")
+            messagebox.showerror(
+                "Snakemake failed",
+                f"The Snakemake workflow exited with code {exit_code}. Review the log output for details.",
+            )
+
+        self.snakemake_thread = None
+        self.snakemake_queue = None
+
+    def _on_snakemake_close_requested(self) -> None:
+        if self.snakemake_running:
+            messagebox.showinfo(
+                "Snakemake running",
+                "Wait for the Snakemake workflow to finish before closing this window.",
+            )
+            return
+        self._close_snakemake_dialog()
+
+    def _close_snakemake_dialog(self) -> None:
+        if self.snakemake_dialog is not None:
+            self.snakemake_dialog.destroy()
+        self.snakemake_dialog = None
+        self.snakemake_text = None
+        self.snakemake_close_button = None
+
+    # ------------------------------------------------------------------
+
     # Diff and status helpers
     def show_diff(self) -> None:
         state = self.current_state
