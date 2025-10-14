@@ -1,0 +1,188 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Usage &mdash; LAVA_china 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Troubleshooting" href="troubleshooting.html" />
+    <link rel="prev" title="Getting Started" href="getting_started.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            LAVA_china
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Usage</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#running-the-pipeline">Running the Pipeline</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#configuration-files">Configuration Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#input-data-requirements">Input Data Requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#outputs-and-results">Outputs and Results</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">LAVA_china</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Usage</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/usage.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="usage">
+<h1>Usage<a class="headerlink" href="#usage" title="Link to this heading"></a></h1>
+<p>This section explains how to run the LAVA_china Snakemake workflow, how to configure it for your specific needs, and details about the expected input data and generated outputs.</p>
+<section id="running-the-pipeline">
+<h2>Running the Pipeline<a class="headerlink" href="#running-the-pipeline" title="Link to this heading"></a></h2>
+<p>After setting up the conda environment and activating it (see the <em>Getting Started</em> section), you can run the Snakemake pipeline. Ensure you are in the project root directory (the one containing the Snakefile).</p>
+<p>Here are the basic steps to execute the workflow:</p>
+<ul>
+<li><p><strong>Dry Run (optional):</strong> It’s good practice to do a dry run first. This will show you which steps would be executed, without actually running them. Use:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>snakemake<span class="w"> </span>-n
+</pre></div>
+</div>
+<p>Review the output to confirm that the workflow is set up as expected and all input files are found.</p>
+</li>
+<li><p><strong>Run the full pipeline:</strong> Once satisfied with the dry run, execute the workflow:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>snakemake<span class="w"> </span>-j<span class="w"> </span>&lt;N&gt;
+</pre></div>
+</div>
+<p>Replace <code class="docutils literal notranslate"><span class="pre">&lt;N&gt;</span></code> with the number of CPU cores you want to use in parallel. Snakemake will schedule jobs across these cores. For example, use <code class="docutils literal notranslate"><span class="pre">-j</span> <span class="pre">4</span></code> for 4 cores, or use <code class="docutils literal notranslate"><span class="pre">-j</span> <span class="pre">1</span></code> to run jobs one at a time. If your system has many cores and sufficient memory, you can increase <code class="docutils literal notranslate"><span class="pre">N</span></code> to speed up the processing.</p>
+<p>The pipeline’s <strong>default target</strong> (if you run <cite>snakemake</cite> without specifying a particular output) is usually configured to produce all main results. Snakemake will automatically determine which intermediate steps (rules) need to run based on the configuration and what outputs already exist.</p>
+</li>
+<li><p><strong>Monitor progress:</strong> Snakemake will print out each rule as it executes. If a rule fails, Snakemake will stop execution and report an error. You can find more details in any log files produced (often specified in the Snakefile for certain rules) or directly in the error message.</p></li>
+<li><p><strong>Resume or re-run:</strong> If the workflow stops due to an error or if you want to re-run specific parts, you do not need to start from scratch. Snakemake will not redo steps whose outputs are already up-to-date. You can fix any issues (e.g., adjust configuration or code) and run <cite>snakemake</cite> again. It will pick up from where it left off, executing only the missing or outdated steps. For forcing a specific rule to re-run, see the FAQ section on re-running failed rules.</p></li>
+</ul>
+</section>
+<section id="configuration-files">
+<h2>Configuration Files<a class="headerlink" href="#configuration-files" title="Link to this heading"></a></h2>
+<p>LAVA_china is designed to be flexible through configuration. The main configuration is done via YAML files in the <cite>config/</cite> directory. Before running the pipeline for the first time (and whenever you want to change the analysis parameters), you should review and edit these configs:</p>
+<ul>
+<li><p><strong>Global config (`config/config.yaml`):</strong> This file contains global settings that apply to the entire pipeline. For example, it may define paths for input/output directories, default analysis parameters, the list of regions or datasets to process, or global flags (such as whether to use a caching mechanism, logging detail, etc.). Ensure that the paths and settings in this file are correct for your system. Many defaults are provided, but you might need to adjust, for instance, the path to your data directory if it’s not the default <code class="docutils literal notranslate"><span class="pre">data/</span></code> or output directory if you wish to change it.</p></li>
+<li><p><strong>Region-specific config (`config/regions/*.yaml`):</strong> Typically, each target region or dataset has its own YAML file in the <cite>config/regions/</cite> folder. For example, <cite>config/regions/example_region.yaml</cite> might define parameters for a region called “example_region”. These per-region config files likely include:</p>
+<ul class="simple">
+<li><p><strong>Region name or identifier:</strong> A human-readable name or code for the region.</p></li>
+<li><p><strong>Spatial extent or boundary:</strong> This could be specified via coordinates (lat/long bounds) or a path to a vector file (such as a Shapefile or GeoJSON) in the <cite>data/</cite> folder that delineates the region of interest.</p></li>
+<li><p><strong>Time frame or date range:</strong> (If applicable) Dates for which the analysis should be done (e.g., year, season, or specific range of satellite data to retrieve).</p></li>
+<li><p><strong>Data source parameters:</strong> For remote sensing data via OpenEO or other APIs, this might include collection names, product IDs, or cloud service endpoints. For example, specifying to use Sentinel-2 imagery or a particular data cube.</p></li>
+<li><p><strong>Processing parameters:</strong> Any algorithm-specific settings (e.g., cloud cover threshold, indices to compute, etc.).</p></li>
+</ul>
+<p>When you want to run the pipeline for a particular region, ensure that the corresponding YAML file is filled out with the correct values. You may use the provided example as a template. If you want to add a new region, you can create a new YAML file in this directory (see the FAQ on adding a new region).</p>
+</li>
+</ul>
+<p>Often, the global config file will have a key that indicates which region or regions to process (for instance, a list of region names). Make sure this reflects the regions you intend to run. In some setups, the pipeline might automatically run all region configs found in the folder; in others, you might specify the target region via a command-line option or by editing the config. Check the comments in <cite>config/config.yaml</cite> or documentation in the file for guidance on how to specify the active region.</p>
+<p><strong>Note:</strong> YAML files are sensitive to formatting. Be careful to follow the indentation pattern and syntax exactly. Strings containing special characters, like Windows paths or colons, should be quoted (e.g., <code class="docutils literal notranslate"><span class="pre">C:\\data\\input</span></code> or <cite>“some: value”</cite>). Incorrect YAML formatting is a common source of errors—if you encounter a “YAML decode” or “mapping values not allowed” error, double-check your edits for typos or formatting issues.</p>
+</section>
+<section id="input-data-requirements">
+<h2>Input Data Requirements<a class="headerlink" href="#input-data-requirements" title="Link to this heading"></a></h2>
+<p>The pipeline expects certain input data files to be present or accessible, depending on your analysis. Below are the typical raw data requirements and formats:</p>
+<ul class="simple">
+<li><p><strong>Region boundaries:</strong> If your analysis is region-based, you need to provide the boundary of each region of interest. This is usually a vector file (e.g., ESRI Shapefile, GeoJSON, GeoPackage, etc.) that outlines the area. The config for a region will reference this file. Make sure to place such files in the <cite>data/</cite> directory (or another location and update the path in the config accordingly). The coordinate reference system should be one commonly used (WGS84 latitude/longitude is a safe default unless the project specifies otherwise).</p></li>
+<li><p><strong>Ancillary data:</strong> Depending on the project scope, there may be additional required datasets (for example, a mask for water bodies, administrative boundaries, or land cover classification legends). If so, these should be prepared in the format expected (which could be raster GeoTIFF, CSV tables, etc.) and placed in the appropriate folder (check the config keys or README for clues on where these should go). Ensure file paths in the config match where you’ve placed these files.</p></li>
+<li><p><strong>Remote sensing data via OpenEO:</strong> One of the key features of LAVA_china is integration with OpenEO for accessing Earth observation data. The pipeline can retrieve satellite imagery or derived products on-the-fly using the OpenEO API, so you typically do <strong>not</strong> need to manually download raw satellite images. However, you might need to provide an account API token or credentials for the OpenEO platform if required. Consult the config file for any fields like <cite>openeo_token</cite> or <cite>openeo_backend</cite>. If the pipeline is configured to use a public OpenEO endpoint (e.g., Sentinel data on a public back-end), it might work without additional credentials. Otherwise, ensure you have the necessary access.</p></li>
+<li><p><strong>Data formats:</strong> For all input files you provide, use standard formats:
+- Vector data: Shapefile (<cite>.shp</cite> with accompanying files), GeoJSON, or GeoPackage are typically supported via GDAL/OGR.
+- Raster data: GeoTIFF (<cite>.tif</cite>) is commonly used for gridded data. NetCDF or HDF5 might be used for certain climate or multi-band data (the pipeline documentation or config would specify if needed).
+- Tabular data: CSV or Excel files if any socioeconomic or reference data is needed. Make sure any such files are properly formatted (headers, delimiter) as expected by the pipeline’s scripts.</p></li>
+</ul>
+<p>Before running the pipeline, double-check that all required input files are available. If you run a dry run (<cite>snakemake -n</cite>), Snakemake will list any missing input files for the rules, which can help identify if you forgot to provide something.</p>
+</section>
+<section id="outputs-and-results">
+<h2>Outputs and Results<a class="headerlink" href="#outputs-and-results" title="Link to this heading"></a></h2>
+<p>After the pipeline runs, results will be generated in the <cite>results/</cite> directory (unless configured otherwise). The exact outputs depend on what the pipeline is designed to do, but typical outputs could include:</p>
+<ul class="simple">
+<li><p><strong>Processed raster files:</strong> e.g., GeoTIFF files of analysis results such as indices (NDVI, land cover maps, etc.) or other spatial layers produced for the region.</p></li>
+<li><p><strong>Vector outputs:</strong> e.g., shapefiles or GeoJSON files with extracted features, boundaries, or zonal statistics.</p></li>
+<li><p><strong>Tabular data:</strong> e.g., CSV files summarizing statistics (like area of change, time series of an indicator, etc.).</p></li>
+<li><p><strong>Plots or figures:</strong> If the pipeline generates charts or maps for reporting, these might be saved as PNG/PDF images in a subfolder of <cite>results/</cite> (for example, <cite>results/plots/</cite>).</p></li>
+<li><p><strong>Logs:</strong> The pipeline may produce log files for certain rules (often stored in a <cite>logs/</cite> directory or within <cite>results/</cite> per rule). These can be helpful for debugging or record-keeping.</p></li>
+</ul>
+<p>The output files are usually organized by region and/or by processing date. For instance, you might find a subfolder under <cite>results/</cite> named after the region or analysis name, containing all outputs for that run.</p>
+<p>All output locations and filenames are defined in the Snakefile and config. You can change the output directory or file naming by adjusting the configuration, but by default everything will be under <cite>results/</cite> to keep the project directory tidy.</p>
+<p>Once the run is complete, you can explore the <cite>results/</cite> folder to inspect the outputs. It’s a good idea to verify a few output files (open them in a GIS or viewer) to ensure the results look as expected. If something is off, you may need to adjust the config or troubleshoot (see the next section for common issues).</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="getting_started.html" class="btn btn-neutral float-left" title="Getting Started" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="troubleshooting.html" class="btn btn-neutral float-right" title="Troubleshooting" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -85,49 +85,7 @@ In the `config.yaml` file you can configure the data preprocessing and the land 
 In the `config.yaml` file you can choose which data you want to consider in the preprocessing.
 You also have to select your study region. When using the automatic download from [gadm.org](https://gadm.org/), you have to specify the name of the region (region_name) and the GADM level as it is used by gadm.org. Ideally you download the geopackage of the country you are interested in from [gadm.org](gadm.org) and load it into QGIS to find the right `gadm_level` and `region_name`. For some countries there are troubles downloading administrative boundaries from gadm.org. Then you must use your own custom study area file instead.
 Finally, you have to specify the land exclusions and buffer zones.
-At the bottom of the `config.yaml` file you can find the settings for advanced details.
-
-### Interactive configuration editor
-
-For the China-specific templates (`configs/config_template_china.yaml`,
-`configs/onshorewind_template_china.yaml`, and
-`configs/solar_template_china.yaml`) you can use the optional Tkinter
-application `config_editor_app.py` to browse and edit the YAML files with a
-desktop GUI.
-
-1. Ensure the optional dependency `ruamel.yaml` is installed in your active
-   environment (it is included in the default `requirements.yaml`, but can
-   also be added manually):
-
-   ```bash
-   pip install ruamel.yaml
-   ```
-
-   On Linux distributions where Tkinter is not bundled with Python you may
-   need to install it separately, e.g. `sudo apt-get install python3-tk`.
-
-2. Launch the editor from the repository root:
-
-   ```bash
-   python config_editor_app.py
-   ```
-
-   The left-hand panel lets you choose one of the configuration templates and
-   filter parameters by name or value. Selecting an entry opens an editing panel
-   where booleans are toggled with checkboxes, scalar values can be typed
-   directly, and lists or nested mappings can be edited through the built-in
-   YAML dialog. Buttons at the top handle saving, reloading, reverting, and
-   previewing unified diffs before writing changes back to disk.
-
-   A "Run Snakemake workflow" button is also available to execute the
-   `snakemake/Snakefile_short_short` pipeline. Install
-   [Snakemake](https://snakemake.readthedocs.io/en/stable/) in the same
-   environment and ensure the `snakemake/Snakefile_short_short` file exists in
-   the repository before launching the workflow. The command entry beneath the
-   button defaults to `snakemake --snakefile snakemake/Snakefile_short_short --cores 1`
-   but can be edited to change the number of cores or add additional Snakemake
-   options before starting the run. The GUI displays the live Snakemake log
-   output and reports whether the run finishes successfully.
+At the bottom of the `config.yaml` file you can find the settings for advanced details. 
 
 
 ## 3. Spatial data preparation
