@@ -1,0 +1,190 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Getting Started &mdash; LAVA_china 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Usage" href="usage.html" />
+    <link rel="prev" title="LAVA_china Documentation" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            LAVA_china
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Getting Started</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#setting-up-the-conda-environment">Setting up the Conda Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#project-folder-structure">Project Folder Structure</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">LAVA_china</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Getting Started</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/getting_started.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="getting-started">
+<h1>Getting Started<a class="headerlink" href="#getting-started" title="Link to this heading"></a></h1>
+<p>This section will guide you through setting up the LAVA project on your local system. It covers the prerequisites, environment setup, and an overview of the repository structure to help you get started quickly.</p>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading"></a></h2>
+<p>Before installing and running <strong>LAVA</strong>, ensure you have the following:</p>
+<ul class="simple">
+<li><p><strong>Conda</strong> (Anaconda or Miniconda) installed on your system for managing the environment.</p></li>
+<li><p><strong>Git</strong> (optional) if you plan to clone the repository using Git.</p></li>
+<li><p>A system with sufficient disk space and memory, especially if processing large datasets.</p></li>
+</ul>
+</section>
+<section id="setting-up-the-conda-environment">
+<h2>Setting up the Conda Environment<a class="headerlink" href="#setting-up-the-conda-environment" title="Link to this heading"></a></h2>
+<ol class="arabic">
+<li><p><strong>Clone the repository</strong> (if you haven’t done so): Open a terminal and run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/m-dandrea/LAVA.git
+<span class="nb">cd</span><span class="w"> </span>LAVA
+</pre></div>
+</div>
+<p>This will create a local copy of the project in a folder named <code class="docutils literal notranslate"><span class="pre">LAVA</span></code>.</p>
+</li>
+<li><p><strong>Create the Conda environment</strong> using the provided environment file. The repository includes an environment file (e.g., <code class="docutils literal notranslate"><span class="pre">requirements.yaml</span></code>) that lists all necessary dependencies. Run the following command from the repository root:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>envs/environment.yaml
+</pre></div>
+</div>
+<p>This will create a new Conda environment (often named <code class="docutils literal notranslate"><span class="pre">lava</span></code>) with all required packages, including Snakemake and geospatial libraries (GDAL/OGR, OpenEO client, etc.).</p>
+</li>
+<li><p><strong>Activate the environment</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>lava
+</pre></div>
+</div>
+</li>
+<li><p><em>(Optional)</em> <strong>Update the environment</strong> in the future: If the environment file changes (for example, new dependencies are added), you can update your environment with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>env<span class="w"> </span>update<span class="w"> </span>-f<span class="w"> </span>envs/environment.yaml
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="project-folder-structure">
+<h2>Project Folder Structure<a class="headerlink" href="#project-folder-structure" title="Link to this heading"></a></h2>
+<p>Understanding the repository layout will help in navigating the project and configuring it. Below is an overview of the <strong>LAVA</strong> folder structure (using relative paths from the repository root):</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>LAVA/
+├── Snakefile
+├── envs/requirements.yml       # Requirements for environment
+├── config/
+│   ├── config.yaml             # Main configuration file for the pipeline
+|   ├── onshore.yaml            # Technology specific configurations
+|   ├── solar.yaml            # Technology specific configurations
+|   └── ...
+├── Raw_spatial_data/          # Directory for input data (e.g., bathimetry data (DEM), ... )
+│   └── ...
+├── data/                      # Directory where output results will be stored (e.g., land availability)
+│   └── ...
+├── snakemake/                 # Snakemke worflows
+│   └── ...
+├── utils/                    # Collection of supporting scripts storing functions used in the main scripts.
+│   └── ...
+└── README.md                  # Project README with additional info
+</pre></div>
+</div>
+<p>Key components of the structure:</p>
+<ul class="simple">
+<li><p><strong>Snakefile</strong>: The main Snakemake workflow definition. It describes all the rules (steps) in the pipeline.</p></li>
+<li><p><strong>requirement.yaml</strong>: Conda environment specification with all required dependencies.</p></li>
+<li><p><strong>config/</strong>: Contains configuration files. The main <code class="docutils literal notranslate"><span class="pre">config.yaml</span></code> defines global settings.</p></li>
+<li><p><strong>Raw_spatial_data/</strong>: Intended for raw input data required by the pipeline. For example, if the pipeline requires a boundary shapefile or other input datasets, they should be placed here, in the specified folders.</p></li>
+<li><p><strong>data/</strong>: Outputs produced by the pipeline will be stored here. The pipeline will create subdirectories or files in this folder to organize results.</p></li>
+<li><p><strong>snakemake/</strong>: Snakemake workflows.</p></li>
+<li><p><strong>utils/</strong>: Collection of supporting scripts storing functions used in the main scripts.</p></li>
+<li><p><strong>README.md</strong>: A markdown file with basic information about the project (often includes a brief description and possibly a summary of setup instructions).</p></li>
+</ul>
+<p>With the environment set up and an understanding of the folder structure, you are now ready to use the pipeline. Proceed to the next section for instructions on running the workflow and configuring it for your data.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="LAVA_china Documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="usage.html" class="btn btn-neutral float-right" title="Usage" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
