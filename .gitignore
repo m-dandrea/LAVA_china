@@ -60,5 +60,8 @@
 !create_cutout.py
 !bias_correction_factors
 !bias_correction_factors/ERA5_wnd100m_bias.nc
-!docs
-!docs/**
+!docs/              #Keeps the folder itself tracked
+!docs/**            #Keeps all files inside docs tracked by default
+docs/_build/        #Ignores the compiled output (HTML, etc.)
+docs/_build/**      #Ignores everything inside _build/ recursively
+docs/.doctrees/     #Ignores internal Sphinx cache folder
