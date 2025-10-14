@@ -22,7 +22,8 @@ import argparse
 import csv
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
-
+import os
+from data_preprocessing import rel_path
 
 def _discover(root: Path) -> Tuple[Dict[str, Set[str]], List[str]]:
     """Return (scenarios_by_tech, provinces_with_logs).
@@ -33,8 +34,11 @@ def _discover(root: Path) -> Tuple[Dict[str, Set[str]], List[str]]:
     scenarios_by_tech: Dict[str, Set[str]] = {}
     provinces: Set[str] = set()
 
-    data_dir = root / "data"
+    data_dir = root / "C:/Users/b076218/Documents/Filkassen/China - modeling/EDO/RE spatial planning/LAVA/data"
+    scenario_log_path_collection=[]
+
     for log_path in data_dir.glob("*/scenario_runs.log"):
+        scenario_log_path_collection.append(log_path)
         province = log_path.parent.name
         provinces.add(province)
         with log_path.open(newline="") as fh:
@@ -57,7 +61,6 @@ def _discover(root: Path) -> Tuple[Dict[str, Set[str]], List[str]]:
 
     return scenarios_by_tech, sorted(provinces)
 
-
 def _matching_files_in_folder(folder: Path, tech: str, scenario: str) -> List[Path]:
     if not folder.exists():
         return []
@@ -66,31 +69,32 @@ def _matching_files_in_folder(folder: Path, tech: str, scenario: str) -> List[Pa
         if not p.is_file():
             continue
         name = p.name
-        if scenario in name and (tech == "" or tech in name):
+        if scenario in name and tech in name:
             matches.append(p)
     return matches
 
 
-def _collect_files_for_all_provinces(root: Path, provinces: List[str], tech: str, scenario: str) -> List[Path]:
+def _collect_files_for_all_provinces(root: Path, provinces: List[str], tech: List[str], scenario: str) -> List[Path]:
     files: List[Path] = []
-    for prov in provinces:
-        base = root / "data" / prov
-        files += _matching_files_in_folder(base / "available_land", tech, scenario)
-        files += _matching_files_in_folder(base / "suitability", tech, scenario)
-        files += _matching_files_in_folder(base / "snakemake_log", tech, scenario)
-    # Deduplicate while preserving order
     seen: Set[Path] = set()
     unique: List[Path] = []
-    for f in files:
-        if f not in seen:
-            unique.append(f)
-            seen.add(f)
+    for t in tech: 
+        for prov in provinces:
+            base = root / "C:/Users/b076218/Documents/Filkassen/China - modeling/EDO/RE spatial planning/LAVA/data" / prov
+            files += _matching_files_in_folder(base / "available_land", t, scenario)
+            files += _matching_files_in_folder(base / "suitability", t, scenario)
+            files += _matching_files_in_folder(base / "snakemake_log", t, scenario)
+        # Deduplicate while preserving order
+        for f in files:
+            if f not in seen:
+                unique.append(f)
+                seen.add(f)
     return unique
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Delete available land files by scenario run from scenario_runs.log"
+        description="Delete scenario files based on scenarios store in scenario_runs.log"
     )
     parser.add_argument(
         "--root",
@@ -127,7 +131,20 @@ def main() -> None:
         print("Invalid selection. Try again.")
     scenario = scenarios[si - 1]
 
-    files = _collect_files_for_all_provinces(args.root, provinces, "", scenario)
+    while True:
+        print("Technologies: onshore [1], Solar [2], all [3]")
+        raw = input("Choose technology [number]: ").strip()
+        try:
+            si = int(raw)
+            tech_dic = {1: ["onshore"], 2 : ["solar"], 3:["onshore","solar"] }
+            tech=tech_dic.get(si)
+            if tech is not None:
+                break
+        except ValueError:
+            pass
+        print("Invalid selection. Try again.")
+
+    files = _collect_files_for_all_provinces(args.root, provinces, tech, scenario)
     if not files:
         print("No files found matching the selected technology and scenario.")
         return
@@ -135,7 +152,7 @@ def main() -> None:
     print("The following files will be deleted:")
     for p in files:
         try:
-            rel = p.relative_to(args.root)
+            rel = rel_path(p)
         except Exception:
             rel = p
         print(f" - {rel}")

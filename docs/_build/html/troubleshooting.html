@@ -1,0 +1,164 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Troubleshooting &mdash; LAVA_china 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="FAQ" href="faq.html" />
+    <link rel="prev" title="Usage" href="usage.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            LAVA_china
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#ogr-errors-vector-raster-data-handling">OGR Errors (Vector/Raster Data Handling)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#yaml-decoding-errors-configuration">YAML Decoding Errors (Configuration)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#openeo-memory-overflow-errors">OpenEO Memory Overflow Errors</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">LAVA_china</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Troubleshooting</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/troubleshooting.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="troubleshooting">
+<h1>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h1>
+<p>Even with a well-configured setup, you may encounter issues when running the LAVA_china pipeline. This section lists some common problems and how to resolve them. If your issue is not listed here, consider checking the log files or error messages for clues, and ensure your configuration and environment are set up as per the instructions.</p>
+<section id="ogr-errors-vector-raster-data-handling">
+<h2>OGR Errors (Vector/Raster Data Handling)<a class="headerlink" href="#ogr-errors-vector-raster-data-handling" title="Link to this heading"></a></h2>
+<p><strong>Symptom:</strong> The pipeline halts with an error message related to OGR or GDAL (the libraries used for geospatial data I/O). You might see messages like “OGR Error”, “GDAL exception”, or an inability to read/write a certain file format.</p>
+<p><strong>Common causes &amp; solutions:</strong></p>
+<ul class="simple">
+<li><p><strong>Missing or misconfigured GDAL/OGR:</strong> Ensure that the conda environment includes GDAL/OGR and it is properly activated. (The provided environment should have it, but if you see <cite>ModuleNotFoundError</cite> for <cite>osgeo</cite> or <cite>ogr</cite>, the environment might not be active or installed correctly.)</p></li>
+<li><p><strong>Unsupported file format or driver issues:</strong> Check that your input files are in a supported format. For example, if you’re using a KML or another less common format, GDAL may need an extra driver. Stick to common formats like Shapefile or GeoJSON for vector data. If you must use another format, ensure GDAL supports it and the appropriate driver is available.</p></li>
+<li><p><strong>Incorrect file paths:</strong> An “unable to open file” error often means the path in your config is wrong or the file is missing. Double-check that the path to your shapefiles or other data in the YAML config is correct relative to the project directory (or provide an absolute path).</p></li>
+<li><p><strong>Data corruption or projection issues:</strong> Sometimes an OGR error can indicate a corrupted file or a projection mismatch. Try opening the file in a GIS software to ensure it’s valid. If it’s a projection issue (e.g., the pipeline expects WGS84 but the data is in a local projection), either reproject your data or update the config/processing to handle that projection.</p></li>
+</ul>
+<p>After addressing the above, try running the pipeline again. OGR/GDAL errors are usually resolved by fixing environment issues or correcting input data problems.</p>
+</section>
+<section id="yaml-decoding-errors-configuration">
+<h2>YAML Decoding Errors (Configuration)<a class="headerlink" href="#yaml-decoding-errors-configuration" title="Link to this heading"></a></h2>
+<p><strong>Symptom:</strong> Running <cite>snakemake</cite> fails immediately with a YAML parse error, or the pipeline cannot read the config file. Error messages may include phrases like “YAMLError”, “could not find expected ‘:’”, or “mapping values are not allowed here”.</p>
+<p><strong>Common causes &amp; solutions:</strong></p>
+<ul>
+<li><p><strong>Syntax errors in YAML:</strong> YAML is sensitive to formatting. Even a single mis-placed character can break it. Check the indicated line number in the error (if provided). Look for:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Missing colon or value (every key should be followed by a colon and a space, then the value).</p></li>
+<li><p>Inconsistent indentation (use spaces consistently, no tabs).</p></li>
+<li><p>Unclosed quotes or brackets.</p></li>
+<li><p>A stray <cite>-</cite> that isn’t part of a proper list.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p><strong>Special characters not quoted:</strong> If your values include characters like <cite>:</cite>, <cite>#</cite>, or <cite>`, they might be interpreted as YAML syntax. For example, a Windows path `C:datafile</cite> or a string with a colon like <cite>http://example</cite> need to be quoted. Ensure file paths and URLs in the config are enclosed in quotes.</p></li>
+<li><p><strong>Copy-paste formatting issues:</strong> If you copied config content from another source (like an email or Word doc), invisible characters or wrong indentation might have been introduced. Re-type those lines or use a plain text editor to fix formatting.</p></li>
+<li><p><strong>Blank lines or encoding issues:</strong> Ensure there are no odd characters in the file. Save the config in UTF-8 encoding. Avoid tabs (use 2 spaces for indentation).</p></li>
+</ul>
+<p>After fixing the YAML file, run a dry run (<cite>snakemake -n</cite>) to confirm that the configuration is now loading properly. It can be helpful to use an online YAML validator or a linter to check your config file if you keep encountering issues.</p>
+</section>
+<section id="openeo-memory-overflow-errors">
+<h2>OpenEO Memory Overflow Errors<a class="headerlink" href="#openeo-memory-overflow-errors" title="Link to this heading"></a></h2>
+<p><strong>Symptom:</strong> When processing data through OpenEO, you receive errors indicating memory overflow or out-of-memory conditions. This might happen during large data retrievals or computations (for instance, processing a very large region at high resolution or a long time series). The error might come from the OpenEO backend and look like a failure to complete the job due to memory limits.</p>
+<p><strong>Common causes &amp; solutions:</strong></p>
+<ul class="simple">
+<li><p><strong>Request too large:</strong> The most common reason is that the area or time range you are requesting data for is too large to handle in one go. Try reducing the spatial extent (process a smaller region or tile the region into sub-regions) or shorten the time range and process in batches. You can then merge the results if needed.</p></li>
+<li><p><strong>High resolution data on large extent:</strong> If you’re requesting data at full resolution for a very large area (e.g., high-res imagery for all of China at once), it’s likely to overwhelm memory. Consider using a lower resolution or summary product if appropriate, or split the request (as above).</p></li>
+<li><p><strong>OpenEO backend limits:</strong> Some OpenEO providers have default memory and processing time limits for jobs. If you consistently hit a memory error on the backend, check if the pipeline or OpenEO client allows specifying job options. For example, some OpenEO clients let you set <cite>job_options={“max_memory”: …}</cite> or similar. If the LAVA_china config has settings for OpenEO jobs (memory, tile size, etc.), try adjusting them to be more modest.</p></li>
+<li><p><strong>Local environment (if applicable):</strong> In cases where OpenEO operations are executed locally or intermediate results are stored locally, ensure your machine has enough memory. Closing other applications or increasing swap space can help avoid local memory errors.</p></li>
+<li><p><strong>Monitor and iterative approach:</strong> It might be necessary to iteratively approach large tasks: process data in chunks, verify each chunk, and clean up intermediate data as you go to free memory.</p></li>
+</ul>
+<p>In summary, memory overflow issues can often be mitigated by processing less data at a time or by tuning the job parameters. If the problem persists even after trying the above, you may need to consult OpenEO platform documentation or support to see if higher resource allocations are possible for your jobs, or if an alternative approach (like downloading raw data and processing offline in smaller pieces) is more feasible.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="usage.html" class="btn btn-neutral float-left" title="Usage" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="faq.html" class="btn btn-neutral float-right" title="FAQ" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
