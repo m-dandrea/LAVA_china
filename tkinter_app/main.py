@@ -16,7 +16,10 @@ import webbrowser
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from collections.abc import Mapping as MappingABC
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
+
+from ruamel.yaml.comments import CommentedMap, CommentedSeq
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import numpy as np
@@ -35,7 +38,8 @@ except Exception:  # pragma: no cover - optional dependency
     HAVE_TTKBOOTSTRAP = False
 CURRENT_DIR = Path(__file__).resolve().parent
 PARENT_DIR = CURRENT_DIR.parent
-SNAKEMAKE_GLOBAL_PATH = PARENT_DIR / "snakemake"/ "Snakefile_global"
+CONFIGS_DIR = PARENT_DIR / "configs"
+SNAKEMAKE_GLOBAL_PATH = PARENT_DIR / "snakemake"/ "Snakefile"
 if str(CURRENT_DIR) not in sys.path:
     sys.path.append(str(CURRENT_DIR))
 if str(PARENT_DIR) not in sys.path:
@@ -43,11 +47,15 @@ if str(PARENT_DIR) not in sys.path:
 from flag_mapper import make_path, ui_bool_to_numeric, yaml_numeric_to_ui_bool  # type: ignore  # noqa: E402
 from data_loader import (  # type: ignore  # noqa: E402
     DEFAULT_RESULTS_DATA,
+    cast_value,
+    round_trip_available,
     load_initial_sections,
     load_onshore_sections,
     load_solar_sections,
     load_config_snakemake_sections,
     load_sample_results,
+    save_sections_round_trip,
+    stringify_list_value,
 )
 try:
     import yaml  # type: ignore
@@ -60,6 +68,31 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     MATPLOTLIB_AVAILABLE = False
 SNAKEFILE_TEMPLATE = """"""
+
+
+def _coerce_list_value(param_type: str, value: Any) -> List[Any]:
+    """
+    Convert raw UI input into a list according to ``list:<subtype>`` typing.
+
+    Returns a best-effort list; invalid numeric entries fall back to trimmed
+    string tokens so the caller can surface them back to the user.
+    """
+    if isinstance(value, (list, tuple)):
+        return list(value)
+
+    text = stringify_list_value(value)
+    if not text:
+        return []
+
+    try:
+        parsed = cast_value(param_type, text)
+    except ValueError:
+        return [item.strip() for item in text.split(",") if item.strip()]
+
+    if isinstance(parsed, list):
+        return parsed
+    return [parsed]
+
 
 def sections_to_yaml(sections: List[Dict[str, Any]]) -> str:
     """Return a YAML representation that mirrors the React implementation."""
@@ -75,13 +108,41 @@ def sections_to_yaml(sections: List[Dict[str, Any]]) -> str:
             if param.get("description"):
                 lines.append(f"  # {param['description']}")
             path = make_path(section["name"], param["key"])
+            value_type = param.get("type", "string")
             value = param.get("value")
-            if param.get("type") == "boolean":
+            if value_type == "boolean":
                 value = ui_bool_to_numeric(path, bool(value))
+            elif value_type.startswith("list:"):
+                value = _coerce_list_value(value_type, value)
+            elif value_type == "mapping":
+                mapping_value = cast_value("mapping", value)
+                if isinstance(mapping_value, MappingABC):
+                    if not mapping_value:
+                        lines.append(f"  {param['key']}: {{}}")
+                    else:
+                        lines.append(f"  {param['key']}:")
+                        for sub_key, sub_value in mapping_value.items():
+                            indent = "    "
+                            if isinstance(sub_value, list):
+                                if not sub_value:
+                                    lines.append(f"{indent}{sub_key}: []")
+                                else:
+                                    joined = ", ".join(repr(item) for item in sub_value)
+                                    lines.append(f"{indent}{sub_key}: [{joined}]")
+                            elif sub_value is None:
+                                lines.append(f"{indent}{sub_key}: null")
+                            elif isinstance(sub_value, str):
+                                lines.append(f"{indent}{sub_key}: {repr(sub_value)}")
+                            else:
+                                lines.append(f"{indent}{sub_key}: {sub_value}")
+                    continue
+                value = mapping_value
             if isinstance(value, bool):
                 value_str = "true" if value else "false"
-            elif param.get("type") == "array":
-                value_str = str(value)
+            elif isinstance(value, (list, dict)):
+                value_str = json.dumps(value, ensure_ascii=False)
+            elif value is None:
+                value_str = "null"
             elif isinstance(value, str):
                 escaped = value.replace('"', '\\"')
                 value_str = f'"{escaped}"'
@@ -90,6 +151,79 @@ def sections_to_yaml(sections: List[Dict[str, Any]]) -> str:
             lines.append(f"  {param['key']}: {value_str}")
         lines.append("")
     return "\n".join(lines).strip() + "\n"
+
+
+def rebuild_from_widgets(original: Any, registry: Dict[str, tk.Variable], path: str = "") -> Any:
+    """
+    Reconstruct a data structure using the original YAML object as template and
+    the Tkinter variable registry for values.
+    """
+    if isinstance(original, MappingABC):
+        result = deepcopy(original)
+        for key, value in original.items():
+            child_path = f"{path}.{key}" if path else key
+            result[key] = rebuild_from_widgets(value, registry, child_path)
+        return result
+
+    if isinstance(original, (list, CommentedSeq)):
+        var = registry.get(path)
+        if var is None:
+            return deepcopy(original)
+        text = var.get()
+        if text is None:
+            return type(original)()
+        stripped = text.strip()
+        if not stripped:
+            return type(original)()
+        items = [item.strip() for item in stripped.split(",") if item.strip()]
+        sample = next((item for item in original if item is not None), None)
+
+        def _convert(item: str) -> Any:
+            if sample is None:
+                return item
+            if isinstance(sample, bool):
+                return item.lower() in {"1", "true", "yes", "on"}
+            if isinstance(sample, int) and not isinstance(sample, bool):
+                try:
+                    return int(item)
+                except ValueError:
+                    return sample
+            if isinstance(sample, float):
+                try:
+                    return float(item)
+                except ValueError:
+                    return sample
+            return item
+
+        converted = [_convert(token) for token in items]
+        sequence = type(original)()
+        if hasattr(sequence, "extend"):
+            sequence.extend(converted)
+            return sequence
+        return converted
+
+    var = registry.get(path)
+    if var is None:
+        return original
+    value = var.get()
+    if value is None:
+        return None
+    stripped = value.strip()
+    if stripped == "" or stripped.lower() == "null":
+        return None
+    if isinstance(original, bool):
+        return stripped.lower() in {"1", "true", "yes", "on"}
+    if isinstance(original, int) and not isinstance(original, bool):
+        try:
+            return int(stripped)
+        except ValueError:
+            return original
+    if isinstance(original, float):
+        try:
+            return float(stripped)
+        except ValueError:
+            return original
+    return stripped
 def yaml_to_sections(
     baseline: List[Dict[str, Any]], yaml_text: str
 ) -> Tuple[Optional[List[Dict[str, Any]]], Optional[str]]:
@@ -117,10 +251,17 @@ def yaml_to_sections(
             if value_type == "boolean":
                 param["value"] = bool(yaml_numeric_to_ui_bool(path, raw_value))
             elif value_type == "number":
-                try:
-                    param["value"] = float(raw_value)
-                except (TypeError, ValueError):
-                    param["value"] = 0.0
+                if raw_value in (None, ""):
+                    param["value"] = None
+                else:
+                    try:
+                        param["value"] = float(raw_value)
+                    except (TypeError, ValueError):
+                        param["value"] = None
+            elif value_type.startswith("list:"):
+                param["value"] = _coerce_list_value(value_type, raw_value)
+            elif value_type == "mapping":
+                param["value"] = cast_value("mapping", raw_value)
             elif value_type == "array":
                 if isinstance(raw_value, (list, dict)):
                     param["value"] = json.dumps(raw_value)
@@ -441,7 +582,8 @@ class ConfigurationTab(ttk.Frame):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
         self.config_mode = tk.StringVar(value="visual")
-        self.param_vars: Dict[Tuple[int, int], tk.Variable] = {}
+        self.param_vars: Dict[Tuple[int, int], Any] = {}
+        self.mapping_registries: Dict[Tuple[int, int], Dict[str, tk.StringVar]] = {}
         self.extra_files = self._load_additional_files()
         self._build_ui()
         self._refresh_config_view()
@@ -571,16 +713,15 @@ class ConfigurationTab(ttk.Frame):
     def _load_additional_files(self) -> Dict[str, Dict[str, Any]]:
         entries: Dict[str, Dict[str, Any]] = {}
         specs = [
-            ("onshorewind.yaml", ("onshorewind.yaml",), load_onshore_sections, "generic"),
-            ("solar.yaml", ("solar.yaml",), load_solar_sections, "generic"),
-            ("config_snakemake.yaml", ("config_snakemake.yaml",), load_config_snakemake_sections, "config_snakemake"),
+            ("onshorewind.yaml", (CONFIGS_DIR / "onshorewind.yaml", PARENT_DIR / "onshorewind.yaml"), load_onshore_sections, "generic"),
+            ("solar.yaml", (CONFIGS_DIR / "solar.yaml", PARENT_DIR / "solar.yaml"), load_solar_sections, "generic"),
+            ("config_snakemake.yaml", (CONFIGS_DIR / "config_snakemake.yaml", PARENT_DIR / "config_snakemake.yaml"), load_config_snakemake_sections, "config_snakemake"),
         ]
-        for label, candidates, section_loader, kind in specs:
+        for label, candidate_paths, section_loader, kind in specs:
             existing_path: Optional[Path] = None
             content = ""
-            expected_path = PARENT_DIR / candidates[0]
-            for name in candidates:
-                candidate = PARENT_DIR / name
+            expected_path = candidate_paths[0]
+            for candidate in candidate_paths:
                 if candidate.exists():
                     existing_path = candidate
                     try:
@@ -597,7 +738,7 @@ class ConfigurationTab(ttk.Frame):
                 "text_widget": None,
                 "status_label": None,
                 "dirty": False,
-                "save_path": expected_path,
+                "save_path": existing_path or expected_path,
                 "expected_path": expected_path,
                 "sections": sections,
                 "mode_var": None,
@@ -753,12 +894,7 @@ class ConfigurationTab(ttk.Frame):
             section_frame.pack(fill="x", pady=(6, 6))
             section_frame.configure(padding=(6, 4))
             for p_index, param in enumerate(section.get("parameters", [])):
-                row = ttk.Frame(section_frame)
-                row.pack(fill="x", pady=2, padx=6)
-                row.columnconfigure(1, weight=0)
-                row.columnconfigure(2, weight=1)
                 label_text = param.get("label") or param["key"].replace("_", " ")
-                ttk.Label(row, text=label_text).grid(row=0, column=0, sticky="w", padx=(0, 6))
                 desc_text = (param.get("description") or "").strip()
                 param_type = param.get("type", "string")
                 ctrl_info: Dict[str, Any] = {
@@ -767,6 +903,41 @@ class ConfigurationTab(ttk.Frame):
                     "param": param,
                     "type": param_type,
                 }
+                if param_type == "mapping":
+                    mapping_value = param.get("value")
+                    if not isinstance(mapping_value, MappingABC):
+                        mapping_value = cast_value("mapping", mapping_value)
+                    if mapping_value is None:
+                        mapping_value = CommentedMap()
+                    template = deepcopy(mapping_value)
+                    param["_template"] = template
+                    frame = ttk.LabelFrame(section_frame, text=label_text)
+                    frame.pack(fill="x", padx=6, pady=2)
+                    frame.columnconfigure(0, weight=1)
+                    if desc_text:
+                        ttk.Label(frame, text=desc_text, wraplength=240, justify="left").pack(
+                            anchor="w", padx=4, pady=(0, 4)
+                        )
+                    registry: Dict[str, tk.StringVar] = {}
+                    self._render_mapping_fields(
+                        frame,
+                        mapping_value,
+                        param["key"],
+                        registry,
+                        lambda name=label, info_ref=ctrl_info: self._on_extra_mapping_changed(name, info_ref),
+                        row_width=100,
+                    )
+                    ctrl_info["mapping_registry"] = registry
+                    ctrl_info["mapping_template"] = template
+                    ctrl_info["mapping_base_path"] = param["key"]
+                    info["param_controls"].append(ctrl_info)
+                    continue
+
+                row = ttk.Frame(section_frame)
+                row.pack(fill="x", pady=2, padx=6)
+                row.columnconfigure(1, weight=0)
+                row.columnconfigure(2, weight=1)
+                ttk.Label(row, text=label_text).grid(row=0, column=0, sticky="w", padx=(0, 6))
                 if param_type == "boolean":
                     var = tk.BooleanVar(value=bool(param.get("value")))
                     ctrl_info["var"] = var
@@ -791,7 +962,12 @@ class ConfigurationTab(ttk.Frame):
                     )
                     ctrl_info["widget"] = widget
                 else:
-                    value = "" if param.get("value") is None else str(param.get("value"))
+                    raw_value = param.get("value")
+                    if param_type.startswith("list:"):
+                        display_value = stringify_list_value(raw_value)
+                    else:
+                        display_value = "" if raw_value is None else str(raw_value)
+                    value = display_value
                     var = tk.StringVar(value=value)
                     ctrl_info["var"] = var
                     entry = ttk.Entry(row, textvariable=var, width=20)
@@ -825,13 +1001,31 @@ class ConfigurationTab(ttk.Frame):
                 if var is not None:
                     text = var.get().strip()
                     if not text:
-                        param["value"] = 0
+                        param["value"] = None
                     else:
                         try:
                             numeric = float(text)
                         except ValueError:
-                            numeric = 0.0
-                        param["value"] = int(numeric) if numeric.is_integer() else numeric
+                            param["value"] = None
+                        else:
+                            param["value"] = int(numeric) if numeric.is_integer() else numeric
+            elif param_type.startswith("list:"):
+                var = ctrl.get("var")
+                if var is not None:
+                    param["value"] = _coerce_list_value(param_type, var.get())
+                else:
+                    param["value"] = []
+            elif param_type == "mapping":
+                registry = ctrl.get("mapping_registry")
+                template = ctrl.get("mapping_template")
+                base_key = ctrl.get("mapping_base_path", param["key"])
+                if registry and template is not None:
+                    new_value = rebuild_from_widgets(template, registry, base_key)
+                    param["value"] = new_value
+                    ctrl["mapping_template"] = deepcopy(new_value)
+                    param["_template"] = deepcopy(new_value)
+                else:
+                    param["value"] = cast_value("mapping", param.get("value"))
             elif param_type == "array":
                 widget = ctrl.get("widget")
                 if widget is not None:
@@ -874,6 +1068,28 @@ class ConfigurationTab(ttk.Frame):
                     else:
                         display = "" if value is None else str(value)
                     widget.insert("1.0", display)
+            elif param_type == "mapping":
+                registry = ctrl.get("mapping_registry", {})
+                mapping_value = value or CommentedMap()
+                if not isinstance(mapping_value, MappingABC):
+                    mapping_value = cast_value("mapping", mapping_value)
+                base_key = param["key"]
+                for full_path, var in registry.items():
+                    if not isinstance(var, tk.StringVar):
+                        continue
+                    relative = full_path[len(base_key):].lstrip(".") if full_path.startswith(base_key) else full_path
+                    target = self._lookup_nested_value(mapping_value, relative)
+                    if isinstance(target, (list, tuple, CommentedSeq)):
+                        var.set(stringify_list_value(target))
+                    elif target is None:
+                        var.set("")
+                    else:
+                        var.set(str(target))
+                ctrl["mapping_template"] = deepcopy(mapping_value)
+            elif param_type.startswith("list:"):
+                var = ctrl.get("var")
+                if var is not None:
+                    var.set(stringify_list_value(value))
             else:
                 var = ctrl.get("var")
                 if var is not None:
@@ -964,7 +1180,11 @@ class ConfigurationTab(ttk.Frame):
             return ""
         for section in sections:
             for param in section.get("parameters", []):
-                data[param["key"]] = param.get("value")
+                param_type = param.get("type", "string")
+                value = param.get("value")
+                if param_type.startswith("list:"):
+                    value = _coerce_list_value(param_type, value)
+                data[param["key"]] = value
         if yaml is not None:
             try:
                 return yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
@@ -1054,25 +1274,32 @@ class ConfigurationTab(ttk.Frame):
         if not info:
             return
         kind = info.get("kind")
-        sections = info.get("sections")
-        if sections:
+        sections_data: Optional[List[Dict[str, Any]]] = info.get("sections")
+        has_structured_sections = sections_data is not None
+        text_widget: Optional[tk.Text] = info.get("text_widget")
+
+        if has_structured_sections:
             mode_var: Optional[tk.StringVar] = info.get("mode_var")
             if mode_var is not None and mode_var.get() == "raw":
                 if not self._sync_extra_text_to_visual(label):
                     return
             else:
                 self._update_extra_sections_from_controls(label)
-            content = self._serialize_sections_for_kind(kind, info.get("sections"))
-            text_widget: Optional[tk.Text] = info.get("text_widget")
-            if text_widget is not None:
-                text_widget.delete("1.0", "end")
-                text_widget.insert("1.0", content)
+            sections_list: List[Dict[str, Any]] = info.get("sections") or []
+            serialized_content = self._serialize_sections_for_kind(kind, sections_list)
         else:
-            text_widget = info.get("text_widget")
             if text_widget is None:
                 return
-            content = text_widget.get("1.0", "end-1c")
-        save_path: Optional[Path] = info.get("save_path")
+            serialized_content = text_widget.get("1.0", "end-1c")
+            sections_list = []
+
+        raw_save_path = info.get("save_path") or info.get("path")
+        if isinstance(raw_save_path, Path):
+            save_path = raw_save_path
+        elif raw_save_path:
+            save_path = Path(raw_save_path)
+        else:
+            save_path = None
         if save_path is None:
             filename = filedialog.asksaveasfilename(
                 title=f"Save {label}",
@@ -1083,17 +1310,33 @@ class ConfigurationTab(ttk.Frame):
             if not filename:
                 return
             save_path = Path(filename)
-        try:
-            save_path.write_text(content, encoding="utf-8")
-        except OSError as exc:
-            messagebox.showerror("Save failed", f"Could not save file:\n{exc}")
-            return
-        info["baseline"] = content
+        final_content = serialized_content
+        used_round_trip = False
+        if has_structured_sections and round_trip_available():
+            try:
+                final_content = save_sections_round_trip(save_path, sections_list)
+                used_round_trip = True
+            except Exception:
+                used_round_trip = False
+        if not used_round_trip:
+            try:
+                save_path.parent.mkdir(parents=True, exist_ok=True)
+                save_path.write_text(serialized_content, encoding="utf-8")
+                final_content = serialized_content
+            except OSError as exc:
+                messagebox.showerror("Save failed", f"Could not save file:\n{exc}")
+                return
+
+        if text_widget is not None:
+            text_widget.delete("1.0", "end")
+            text_widget.insert("1.0", final_content)
+
+        info["baseline"] = final_content
         info["dirty"] = False
         info["save_path"] = save_path
         info["path"] = save_path
         info["expected_path"] = save_path
-        if sections:
+        if has_structured_sections:
             self._render_extra_visual_sections(label, info)
             self._update_extra_visual_controls(label)
         if kind == "config_snakemake":
@@ -1218,6 +1461,42 @@ class ConfigurationTab(ttk.Frame):
                 row_pointer += 1
             key = param["key"]
             value_type = param.get("type", "string")
+            self.mapping_registries.pop((section_index, idx), None)
+            if value_type == "mapping":
+                mapping_value = param.get("value")
+                if not isinstance(mapping_value, MappingABC):
+                    mapping_value = cast_value("mapping", mapping_value)
+                if mapping_value is None:
+                    mapping_value = CommentedMap()
+                template = deepcopy(mapping_value)
+                param["_template"] = template
+                param_path = make_path(section["name"], key)
+                param["_base_path"] = param_path
+                frame = ttk.LabelFrame(self.param_inner, text=key)
+                frame.grid(row=row_pointer, column=0, columnspan=2, sticky="ew", padx=(0, 10), pady=2)
+                frame.columnconfigure(0, weight=1)
+                if description:
+                    ttk.Label(
+                        frame,
+                        text=description,
+                        foreground="#555555",
+                        wraplength=600,
+                        anchor="w",
+                        justify="left",
+                    ).pack(anchor="w", padx=6, pady=(2, 2))
+                registry: Dict[str, tk.StringVar] = {}
+                self._render_mapping_fields(
+                    frame,
+                    mapping_value,
+                    param_path,
+                    registry,
+                    lambda s=section_index, p=idx: self._on_mapping_param_change(s, p),
+                    row_width=100,
+                )
+                self.mapping_registries[(section_index, idx)] = registry
+                self.param_vars[(section_index, idx)] = registry
+                row_pointer += 1
+                continue
             ttk.Label(self.param_inner, text=key).grid(row=row_pointer, column=0, sticky="w", padx=(0, 10), pady=2)
             if value_type == "boolean":
                 var = tk.BooleanVar(value=bool(param.get("value")))
@@ -1228,10 +1507,31 @@ class ConfigurationTab(ttk.Frame):
                 )
                 widget.grid(row=row_pointer, column=1, sticky="w")
                 self.param_vars[(section_index, idx)] = var
-            else:
-                initial = (
-                    str(param.get("value", "")) if value_type != "number" else str(param.get("value", 0))
+            elif value_type == "array":
+                widget = tk.Text(self.param_inner, height=4, width=40, wrap="word")
+                current_value = param.get("value")
+                if isinstance(current_value, (list, dict)):
+                    display_text = json.dumps(current_value, ensure_ascii=False, indent=2)
+                else:
+                    display_text = "" if current_value is None else str(current_value)
+                widget.insert("1.0", display_text)
+                widget.grid(row=row_pointer, column=1, sticky="ew")
+                widget.bind(
+                    "<KeyRelease>",
+                    lambda _event, s_index=section_index, p_index=idx, v_type=value_type, control=widget: self._on_text_param_change(
+                        s_index, p_index, v_type, control
+                    ),
                 )
+                self.param_vars[(section_index, idx)] = widget
+            else:
+                if value_type == "number":
+                    raw_initial = param.get("value")
+                    initial = "" if raw_initial in (None, "") else str(raw_initial)
+                elif value_type.startswith("list:"):
+                    initial = stringify_list_value(param.get("value"))
+                else:
+                    raw_initial = param.get("value", "")
+                    initial = "" if raw_initial is None else str(raw_initial)
                 var = tk.StringVar(value=initial)
                 entry = ttk.Entry(self.param_inner, textvariable=var, width=40)
                 entry.grid(row=row_pointer, column=1, sticky="ew")
@@ -1245,6 +1545,95 @@ class ConfigurationTab(ttk.Frame):
                 )
                 self.param_vars[(section_index, idx)] = var
             row_pointer += 1
+
+    def _lookup_nested_value(self, mapping: Mapping[str, Any], relative_path: str) -> Any:
+        if not relative_path:
+            return mapping
+        current: Any = mapping
+        for part in relative_path.split("."):
+            if not part:
+                continue
+            if isinstance(current, MappingABC):
+                current = current.get(part)
+            else:
+                return None
+        return current
+
+    def _render_mapping_fields(
+        self,
+        parent: tk.Widget,
+        mapping_value: Mapping[str, Any],
+        base_path: str,
+        registry: Dict[str, tk.StringVar],
+        on_change: Callable[[], None],
+        *,
+        anchor: str = "w",
+        row_width: int = 100,
+    ) -> None:
+        if not isinstance(mapping_value, MappingABC):
+            mapping = CommentedMap()
+        else:
+            mapping = mapping_value
+        for key, sub_value in mapping.items():
+            path = f"{base_path}.{key}" if base_path else key
+            if isinstance(sub_value, MappingABC):
+                frame = ttk.LabelFrame(parent, text=key)
+                frame.pack(fill="x", padx=(6, 6), pady=3, anchor=anchor)
+                frame.columnconfigure(0, weight=1)
+                self._render_mapping_fields(
+                    frame,
+                    sub_value,
+                    path,
+                    registry,
+                    on_change,
+                    anchor=anchor,
+                    row_width=row_width,
+                )
+                continue
+            row = ttk.Frame(parent)
+            row.pack(fill="x", padx=(6, 6), pady=2)
+            ttk.Label(row, text=key, width=18).pack(side="left", padx=(0, 8))
+            if isinstance(sub_value, (list, tuple, CommentedSeq)):
+                initial = stringify_list_value(sub_value)
+            elif sub_value is None:
+                initial = ""
+            else:
+                initial = str(sub_value)
+            var = tk.StringVar(value=initial)
+            registry[path] = var
+            var.trace_add("write", lambda *_: on_change())
+            entry = ttk.Entry(row, textvariable=var, width=row_width)
+            entry.pack(side="left", fill="x", expand=True)
+
+    def _on_mapping_param_change(self, section_index: int, param_index: int) -> None:
+        registry = self.mapping_registries.get((section_index, param_index))
+        if registry is None:
+            return
+        param = self.sections[section_index]["parameters"][param_index]
+        template = param.get("_template")
+        if not isinstance(template, MappingABC):
+            template = CommentedMap()
+        base_key = param.get("_base_path", make_path(self.sections[section_index]["name"], param["key"]))
+        new_value = rebuild_from_widgets(template, registry, base_key)
+        param["value"] = new_value
+        param["_template"] = deepcopy(new_value)
+        self._mark_config_dirty()
+
+    def _on_extra_mapping_changed(self, label: str, ctrl_info: Dict[str, Any]) -> None:
+        registry = ctrl_info.get("mapping_registry")
+        if not registry:
+            return
+        param = ctrl_info["param"]
+        template = ctrl_info.get("mapping_template")
+        if not isinstance(template, MappingABC):
+            template = CommentedMap()
+        base_key = ctrl_info.get("mapping_base_path", param["key"])
+        new_value = rebuild_from_widgets(template, registry, base_key)
+        param["value"] = new_value
+        ctrl_info["mapping_template"] = deepcopy(new_value)
+        param["_template"] = deepcopy(new_value)
+        self._mark_extra_dirty(label)
+
     def _on_param_toggle(self, section_index: int, param_index: int) -> None:
         var = self.param_vars.get((section_index, param_index))
         if not var:
@@ -1256,12 +1645,45 @@ class ConfigurationTab(ttk.Frame):
     ) -> None:
         raw_value = variable.get()
         if value_type == "number":
-            try:
-                value = float(raw_value)
-            except ValueError:
-                value = 0.0
+            text = raw_value.strip()
+            if not text:
+                value = None
+            else:
+                try:
+                    value = float(text)
+                except ValueError:
+                    value = None
+        elif value_type.startswith("list:"):
+            value = _coerce_list_value(value_type, raw_value)
         else:
             value = raw_value
+        self.sections[section_index]["parameters"][param_index]["value"] = value
+        self._mark_config_dirty()
+
+    def _on_text_param_change(
+        self, section_index: int, param_index: int, value_type: str, widget: tk.Text
+    ) -> None:
+        text = widget.get("1.0", "end-1c")
+        if value_type == "array":
+            stripped = text.strip()
+            if not stripped:
+                value: Any = []
+            else:
+                try:
+                    value = json.loads(stripped)
+                except Exception:
+                    if yaml is not None:
+                        try:
+                            parsed = yaml.safe_load(stripped)
+                        except Exception:
+                            parsed = stripped
+                        value = parsed
+                    else:
+                        value = stripped
+        elif value_type == "mapping":
+            value = cast_value("mapping", text)
+        else:
+            value = text
         self.sections[section_index]["parameters"][param_index]["value"] = value
         self._mark_config_dirty()
     def _mark_config_dirty(self, raw: bool = False) -> None:
@@ -2884,3 +3306,4 @@ def main() -> None:
     app.mainloop()
 if __name__ == "__main__":
     main()
+
