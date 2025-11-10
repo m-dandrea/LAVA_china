@@ -1,5 +1,6 @@
 """Tkinter-based translation of the Python Script Manager interface."""
 from __future__ import annotations
+import ast
 import html
 import json
 import os
@@ -50,6 +51,7 @@ if str(PARENT_DIR) not in sys.path:
 from flag_mapper import make_path, ui_bool_to_numeric, yaml_numeric_to_ui_bool  # type: ignore  # noqa: E402
 from data_loader import (  # type: ignore  # noqa: E402
     DEFAULT_RESULTS_DATA,
+    CONFIG_SNAKEMAKE_STAGE_FLAGS,
     cast_value,
     round_trip_available,
     load_initial_sections,
@@ -71,6 +73,7 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     MATPLOTLIB_AVAILABLE = False
 SNAKEFILE_TEMPLATE = """"""
+SNAKEMAKE_STAGE_KEYS = [stage["key"] for stage in CONFIG_SNAKEMAKE_STAGE_FLAGS]
 
 
 class TextSyntaxHighlighter:
@@ -863,6 +866,64 @@ class ConfigurationTab(ttk.Frame):
         if highlighter:
             highlighter.refresh()
 
+    @staticmethod
+    def _coerce_sequence_value(value: Any) -> List[Any]:
+        if value is None:
+            return []
+        if isinstance(value, CommentedSeq):
+            return list(value)
+        if isinstance(value, (list, tuple)):
+            return list(value)
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return []
+            try:
+                parsed = json.loads(text)
+            except Exception:
+                parsed = None
+            if isinstance(parsed, list):
+                return list(parsed)
+            try:
+                literal = ast.literal_eval(text)
+            except Exception:
+                literal = None
+            if isinstance(literal, list):
+                return list(literal)
+            if "," in text:
+                return [item.strip() for item in text.split(",") if item.strip()]
+            return [text]
+        return [value]
+
+    @staticmethod
+    def _coerce_boolean_value(value: Any, default: bool = False) -> bool:
+        if isinstance(value, bool):
+            return value
+        if value in (None, ""):
+            return default
+        if isinstance(value, (int, float)):
+            return bool(value)
+        text = str(value).strip().lower()
+        if not text:
+            return default
+        return text in {"1", "true", "yes", "on", "y"}
+
+    @staticmethod
+    def _coerce_integer_value(value: Any, default: int = 0) -> int:
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, (int, float)):
+            return int(value)
+        if value in (None, ""):
+            return default
+        try:
+            text = str(value).strip()
+            if not text:
+                return default
+            return int(float(text))
+        except (TypeError, ValueError):
+            return default
+
     def _load_advanced_settings(self) -> None:
         candidates = [
             PARENT_DIR / "config_advanced_settings.yaml",
@@ -1410,21 +1471,57 @@ class ConfigurationTab(ttk.Frame):
         for section in sections:
             for param in section.get("parameters", []):
                 flat[param["key"]] = param.get("value")
-        try:
-            cores_value = int(flat.get("cores", 4))
-        except (TypeError, ValueError):
-            cores_value = 4
-        snakefile_value = str(flat.get("snakefile", "snakemake_global")).strip() or "snakemake_global"
-        data = {
-            "snakefile": snakefile_value,
+
+        def _stringify(value: Any) -> str:
+            return "" if value is None else str(value).strip()
+
+        cores_value = self._coerce_integer_value(flat.get("cores", 4), default=4)
+        snakefile_value = _stringify(flat.get("snakefile", "snakemake_global")) or "snakemake_global"
+        study_region = _stringify(flat.get("study_region_name", ""))
+        scenario = _stringify(flat.get("scenario", ""))
+        technologies = [str(item) for item in self._coerce_sequence_value(flat.get("technologies", []))]
+        weather_years_raw = self._coerce_sequence_value(flat.get("weather_years", []))
+        weather_years: List[Any] = []
+        for item in weather_years_raw:
+            if isinstance(item, (int, float)):
+                if isinstance(item, float) and not item.is_integer():
+                    weather_years.append(item)
+                else:
+                    weather_years.append(int(item))
+            else:
+                text = str(item).strip()
+                if not text:
+                    continue
+                if text.isdigit():
+                    weather_years.append(int(text))
+                else:
+                    weather_years.append(text)
+        stages = {
+            key: self._coerce_boolean_value(flat.get(key, True), default=True) for key in SNAKEMAKE_STAGE_KEYS
+        }
+        data: Dict[str, Any] = {
+            "study_region_name": study_region,
+            "scenario": scenario,
+            "technologies": technologies,
             "cores": cores_value,
+            "snakefile": snakefile_value,
+            "weather_years": weather_years,
+            "stages": stages,
         }
         if yaml is not None:
             try:
                 return yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
             except Exception:
                 pass
-        return f"snakefile: {data['snakefile']}\ncores: {data['cores']}\n"
+        return (
+            f"study_region_name: {data['study_region_name']}\n"
+            f"scenario: {data['scenario']}\n"
+            f"technologies: {technologies}\n"
+            f"cores: {data['cores']}\n"
+            f"snakefile: {data['snakefile']}\n"
+            f"weather_years: {data['weather_years']}\n"
+            f"stages: {data['stages']}\n"
+        )
 
     def _config_snakemake_sections_from_yaml(
         self, yaml_text: str, sections: List[Dict[str, Any]]
@@ -1437,20 +1534,33 @@ class ConfigurationTab(ttk.Frame):
             return sections, str(exc)
         if not isinstance(data, dict):
             return sections, "Expected a mapping at the top level."
-        flat = {
+        flat: Dict[str, Any] = {
             "snakefile": data.get("snakefile", "snakemake_global"),
             "cores": data.get("cores", 4),
+            "study_region_name": data.get("study_region_name", ""),
+            "scenario": data.get("scenario", ""),
+            "technologies": self._coerce_sequence_value(data.get("technologies", [])),
+            "weather_years": self._coerce_sequence_value(data.get("weather_years", [])),
         }
+        stages = data.get("stages") or {}
+        if isinstance(stages, MappingABC):
+            for key in SNAKEMAKE_STAGE_KEYS:
+                flat[key] = self._coerce_boolean_value(stages.get(key, True), default=True)
+        else:
+            for key in SNAKEMAKE_STAGE_KEYS:
+                flat[key] = True
         for section in sections:
             for param in section.get("parameters", []):
                 key = param["key"]
                 value = flat.get(key, param.get("value"))
-                if param.get("type") == "number":
-                    try:
-                        numeric = int(value)
-                    except (TypeError, ValueError):
-                        numeric = 0
-                    param["value"] = numeric
+                param_type = param.get("type", "string")
+                if param_type == "number":
+                    default_val = 4 if key == "cores" else 0
+                    param["value"] = self._coerce_integer_value(value, default=default_val)
+                elif param_type == "boolean":
+                    param["value"] = self._coerce_boolean_value(value)
+                elif param_type == "array":
+                    param["value"] = self._coerce_sequence_value(value)
                 else:
                     param["value"] = "" if value is None else str(value)
         return sections, None
@@ -2451,7 +2561,7 @@ class RunTab(ttk.Frame):
                 return candidate
         raise FileNotFoundError(f"Could not find {script_name} in the expected locations.")
     def _load_snakemake_settings(self) -> Tuple[str, int]:
-        default_snakefile = "snakemake_global"
+        default_snakefile = "Snakefile"
         default_cores = 4
         path = PARENT_DIR / "config_snakemake.yaml"
         if yaml is None or not path.exists():

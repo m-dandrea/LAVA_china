@@ -445,6 +445,39 @@ SOLAR_SECTION_DEFINITIONS: List[Dict[str, Any]] = [
     },
 ]
 
+CONFIG_SNAKEMAKE_STAGE_FLAGS: List[Dict[str, str]] = [
+    {
+        "key": "spatial_data_prep",
+        "label": "Spatial Data Preparation",
+        "description": "Clip and harmonise spatial inputs.",
+    },
+    {
+        "key": "exclusion",
+        "label": "Land Exclusion",
+        "description": "Run Exclusion.py to derive available land.",
+    },
+    {
+        "key": "suitability",
+        "label": "Suitability",
+        "description": "Execute suitability.py to grade resources.",
+    },
+    {
+        "key": "weather_data_prep",
+        "label": "Weather Data Prep",
+        "description": "Prepare atlite-ready weather cut-outs.",
+    },
+    {
+        "key": "weather_bias_adjust",
+        "label": "Weather Bias Adjust",
+        "description": "Apply bias correction to weather data.",
+    },
+    {
+        "key": "energy_profiles",
+        "label": "Energy Profiles",
+        "description": "Generate energy profile time series.",
+    },
+]
+
 CONFIG_SNAKEMAKE_SECTION_DEFINITIONS: List[Dict[str, Any]] = [
     {
         "name": "snakemake_parameters",
@@ -453,6 +486,7 @@ CONFIG_SNAKEMAKE_SECTION_DEFINITIONS: List[Dict[str, Any]] = [
         "parameters": [
             {"key": "cores", "type": "number", "description": "Number of Snakemake cores."},
             {"key": "snakefile", "type": "string", "description": "Path to the Snakemake file."},
+            {"key": "weather_years", "type": "array", "description": "Weather years to process."},
         ],
     },
     {
@@ -463,6 +497,20 @@ CONFIG_SNAKEMAKE_SECTION_DEFINITIONS: List[Dict[str, Any]] = [
             {"key": "study_region_name", "type": "string", "description": "Region name for the run."},
             {"key": "scenario", "type": "string", "description": "Scenario name for the run."},
             {"key": "technologies", "type": "array", "description": "Technologies to process."},
+        ],
+    },
+    {
+        "name": "stage_flags",
+        "displayName": "Stage Toggles",
+        "description": "Enable or disable individual workflow stages.",
+        "parameters": [
+            {
+                "key": stage["key"],
+                "type": "boolean",
+                "label": stage["label"],
+                "description": stage["description"],
+            }
+            for stage in CONFIG_SNAKEMAKE_STAGE_FLAGS
         ],
     },
 ]
@@ -816,7 +864,9 @@ def load_config_snakemake_sections() -> List[Dict[str, Any]]:
             "cores": "4" ,
             "study_region_name": "dummy_region",
             "scenario": "dummy",
-            "technologies": ["dummy1", "dumm2"]
+            "technologies": ["dummy1", "dumm2"],
+            "weather_years": [2015],
+            **{stage["key"]: True for stage in CONFIG_SNAKEMAKE_STAGE_FLAGS},
         },
         CONFIG_SNAKEMAKE_SECTION_DEFINITIONS,
     )
