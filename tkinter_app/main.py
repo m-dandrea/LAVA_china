@@ -924,6 +924,13 @@ class ConfigurationTab(ttk.Frame):
         except (TypeError, ValueError):
             return default
 
+    @staticmethod
+    def _stringify_weather_years_field(value: Any) -> str:
+        if isinstance(value, str):
+            return value.strip()
+        sequence = ConfigurationTab._coerce_sequence_value(value)
+        return ", ".join(str(item) for item in sequence) if sequence else ""
+
     def _load_advanced_settings(self) -> None:
         candidates = [
             PARENT_DIR / "config_advanced_settings.yaml",
@@ -1561,6 +1568,8 @@ class ConfigurationTab(ttk.Frame):
                     param["value"] = self._coerce_boolean_value(value)
                 elif param_type == "array":
                     param["value"] = self._coerce_sequence_value(value)
+                elif key == "weather_years":
+                    param["value"] = self._stringify_weather_years_field(value)
                 else:
                     param["value"] = "" if value is None else str(value)
         return sections, None

@@ -486,7 +486,14 @@ CONFIG_SNAKEMAKE_SECTION_DEFINITIONS: List[Dict[str, Any]] = [
         "parameters": [
             {"key": "cores", "type": "number", "description": "Number of Snakemake cores."},
             {"key": "snakefile", "type": "string", "description": "Path to the Snakemake file."},
-            {"key": "weather_years", "type": "array", "description": "Weather years to process."},
+            {
+                "key": "weather_years",
+                "type": "string",
+                "description": (
+                    "Weather years to process. Accepts a single year [2015], "
+                    "comma-separated years [2015,2020], or a range [2015*2020]."
+                ),
+            },
         ],
     },
     {
@@ -865,7 +872,7 @@ def load_config_snakemake_sections() -> List[Dict[str, Any]]:
             "study_region_name": "dummy_region",
             "scenario": "dummy",
             "technologies": ["dummy1", "dumm2"],
-            "weather_years": [2015],
+            "weather_years": "2015",
             **{stage["key"]: True for stage in CONFIG_SNAKEMAKE_STAGE_FLAGS},
         },
         CONFIG_SNAKEMAKE_SECTION_DEFINITIONS,
