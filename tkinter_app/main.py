@@ -2371,9 +2371,12 @@ class RunTab(ttk.Frame):
         self.snakemake_file_var = tk.StringVar()
         self.snakemake_cores_var = tk.IntVar()
         self.available_scripts = [
-            {"id": "results_analysis", "name": "results_analysis.py", "description": "Generate aggregated results"},
             {"id": "spatial_data_prep", "name": "spatial_data_prep.py", "description": "Prepare spatial datasets"},
+            {"id": "weather_data_prep", "name": "weather_data_prep.py", "description": "Download weather data"},
             {"id": "exclusion", "name": "exclusion.py", "description": "Run exclusion analysis"},
+            {"id": "suitability", "name": "suitability.py", "description": "Perform resource grade modeling"},
+            {"id": "weather_bias_adjust", "name": "weather_bias_adjust.py", "description": "Adjust weather data biases"},
+            {"id": "energy_profiles", "name": "energy_profiles.py", "description": "Generate energy production profiles"},
         ]
         self.expected_output_dir: Optional[Path] = None
         self.last_run_script_id: Optional[str] = None
