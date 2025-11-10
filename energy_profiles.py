@@ -23,6 +23,8 @@ region_name = clean_region_name(region_name)
 technology = config["technology"]
 scenario = config.get('scenario', 'ref') # scenario, e.g., 'ref' or 'high'
 weather_year = config["weather_year"]
+weather_data_extend = config['weather_data_extend'] 
+country_code = config["country_code"]
 
 # override values via command line arguments through snakemake
 parser = argparse.ArgumentParser()
@@ -42,6 +44,18 @@ if args.method == "snakemake":
     print(f"Running via snakemake - measures: region={region_name}, technology={technology}, scenario={scenario}, weather_year={weather_year}")
 else:
     print(f"Running manually - measures: region={region_name}, technology={technology}, scenario={scenario}, weather_year={weather_year}")
+
+
+# Determine input file metadata based on weather_data_extend parameter
+if weather_data_extend == 'country_code':
+    bias_file_metadata = country_code
+elif weather_data_extend == 'geo_bounds':
+    bounds = config["weather_data_geo_bounds"]
+    bounds = [bounds['west'], bounds['south'], bounds['east'], bounds['north']]  # minx, miny, maxx, maxy
+    bias_file_metadata = f"{bounds[0]}-{bounds[1]}-{bounds[2]}-{bounds[3]}"
+elif weather_data_extend == 'study_region':
+    bias_file_metadata = region_name
+
 
 #load the technology specific configuration file
 tech_config_file = os.path.join("configs", f"{technology}.yaml")
@@ -121,12 +135,12 @@ for cutout_file in cutout_files:
     if config['weather_bias_correction'][technology]:
         # Load bias correction data
         if technology in ['onshorewind', 'offshorewind']:
-            ERA5_wnd100m_bias_path = os.path.join(weather_data_path, 'bias_correction_factors', 'ERA5_wnd100m_bias.nc')
+            ERA5_wnd100m_bias_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{bias_file_metadata}_ERA5_wnd100m_bias.nc')
             ERA5_wnd100m_bias = xr.open_dataset(ERA5_wnd100m_bias_path).sel(x=slice(x1 - offset, x2 + offset), y=slice(y1 - offset, y2 + offset))
             # Apply bias correction
             cutout.data['wnd100m'] = cutout.data['wnd100m'] * ERA5_wnd100m_bias['wnd100m']
         elif technology == 'solar':
-            ERA5_ghi_bias_path = os.path.join(weather_data_path, 'bias_correction_factors', 'ERA5_ghi_bias.nc')
+            ERA5_ghi_bias_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{bias_file_metadata}_ERA5_ghi_bias.nc')
             ERA5_ghi_bias = xr.open_dataset(ERA5_ghi_bias_path).sel(x=slice(x1 - offset, x2 + offset), y=slice(y1 - offset, y2 + offset))
             # Apply bias correction
             cutout.data['influx_direct'] = cutout.data['influx_direct'] * ERA5_ghi_bias['ghi']
