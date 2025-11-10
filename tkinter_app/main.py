@@ -18,6 +18,8 @@ from datetime import datetime
 from pathlib import Path
 from collections.abc import Mapping as MappingABC
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
+import keyword
+import re
 
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 import tkinter as tk
@@ -39,6 +41,7 @@ except Exception:  # pragma: no cover - optional dependency
 CURRENT_DIR = Path(__file__).resolve().parent
 PARENT_DIR = CURRENT_DIR.parent
 CONFIGS_DIR = PARENT_DIR / "configs"
+CONFIG_ADVANCED_SETTINGS_PATH = CONFIGS_DIR / "config_advanced_settings.yaml"
 SNAKEMAKE_GLOBAL_PATH = PARENT_DIR / "snakemake"/ "Snakefile"
 if str(CURRENT_DIR) not in sys.path:
     sys.path.append(str(CURRENT_DIR))
@@ -68,6 +71,110 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     MATPLOTLIB_AVAILABLE = False
 SNAKEFILE_TEMPLATE = """"""
+
+
+class TextSyntaxHighlighter:
+    """Lightweight syntax highlighting for Tkinter ``Text`` widgets."""
+
+    _TAG_STYLES: Dict[str, Dict[str, Any]] = {
+        "comment": {"foreground": "#6A9955"},
+        "keyword": {"foreground": "#C586C0"},
+        "string": {"foreground": "#CE9178"},
+        "number": {"foreground": "#B5CEA8"},
+        "key": {"foreground": "#2F7ACC"},
+        "boolean": {"foreground": "#4FC1FF"},
+        "decorator": {"foreground": "#DCDCAA"},
+    }
+    _PY_KEYWORD_PATTERN = re.compile(
+        r"\b(?:" + "|".join(sorted(re.escape(word) for word in keyword.kwlist)) + r")\b"
+    )
+    _PY_STRING_PATTERN = re.compile(
+        r"""('''.*?'''|\"\"\".*?\"\"\"|'[^'\\]*(?:\\.[^'\\]*)*'|\"[^\"\\]*(?:\\.[^\"\\]*)*\")""",
+        re.DOTALL,
+    )
+    _YAML_STRING_PATTERN = re.compile(r"""("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')""")
+    _LANGUAGE_RULES: Dict[str, List[Tuple[str, re.Pattern[str], int]]] = {
+        "yaml": [
+            ("comment", re.compile(r"#.*", re.MULTILINE), 0),
+            ("key", re.compile(r"(?m)^\s*([^:\n]+)(?=\s*:)"), 1),
+            ("string", _YAML_STRING_PATTERN, 0),
+            ("boolean", re.compile(r"(?i)\b(?:true|false|yes|no|null|on|off)\b"), 0),
+            ("number", re.compile(r"(?<![\w.])[-+]?\d+(?:\.\d+)?"), 0),
+        ],
+        "python": [
+            ("comment", re.compile(r"#.*", re.MULTILINE), 0),
+            ("decorator", re.compile(r"(?m)^\s*@[\w\.]+"), 0),
+            ("string", _PY_STRING_PATTERN, 0),
+            ("keyword", _PY_KEYWORD_PATTERN, 0),
+            ("number", re.compile(r"\b\d+(?:\.\d+)?\b"), 0),
+        ],
+        "plain": [],
+    }
+    _DEBOUNCE_MS = 120
+
+    def __init__(self, widget: tk.Text, language: str = "plain") -> None:
+        self.widget = widget
+        self.language = language if language in self._LANGUAGE_RULES else "plain"
+        self._after_id: Optional[str] = None
+        self._configured_tags: set[str] = set()
+        self._setup_tags()
+        for sequence in ("<KeyRelease>", "<<Paste>>", "<<Cut>>", "<<Undo>>", "<<Redo>>"):
+            widget.bind(sequence, self._schedule_refresh, add="+")
+        widget.bind("<FocusIn>", self._schedule_refresh, add="+")
+        widget.bind("<Expose>", self._schedule_refresh, add="+")
+        widget.bind("<Destroy>", self._on_destroy, add="+")
+        self.refresh()
+
+    def refresh(self) -> None:
+        if not self.widget.winfo_exists():
+            return
+        if self._after_id:
+            try:
+                self.widget.after_cancel(self._after_id)
+            except Exception:
+                pass
+            self._after_id = None
+        self._apply_highlight()
+
+    def _setup_tags(self) -> None:
+        for tag_name, options in self._TAG_STYLES.items():
+            self.widget.tag_configure(tag_name, **options)
+            self._configured_tags.add(tag_name)
+
+    def _schedule_refresh(self, _event: Optional[tk.Event] = None) -> None:
+        if self._after_id:
+            try:
+                self.widget.after_cancel(self._after_id)
+            except Exception:
+                pass
+        self._after_id = self.widget.after(self._DEBOUNCE_MS, self._apply_highlight)
+
+    def _apply_highlight(self) -> None:
+        if not self.widget.winfo_exists():
+            return
+        rules = self._LANGUAGE_RULES.get(self.language, [])
+        text = self.widget.get("1.0", "end-1c")
+        for tag in self._configured_tags:
+            self.widget.tag_remove(tag, "1.0", "end")
+        if not text or not rules:
+            return
+        for tag, pattern, group in rules:
+            for match in pattern.finditer(text):
+                start_offset = match.start(group)
+                end_offset = match.end(group)
+                if start_offset == -1 or end_offset == -1:
+                    continue
+                start_index = f"1.0+{start_offset}c"
+                end_index = f"1.0+{end_offset}c"
+                self.widget.tag_add(tag, start_index, end_index)
+
+    def _on_destroy(self, _event: Optional[tk.Event] = None) -> None:
+        if self._after_id:
+            try:
+                self.widget.after_cancel(self._after_id)
+            except Exception:
+                pass
+            self._after_id = None
 
 
 def _coerce_list_value(param_type: str, value: Any) -> List[Any]:
@@ -578,6 +685,9 @@ class ConfigurationTab(ttk.Frame):
         self.config_dirty = False
         self.snakefile_dirty = False
         self.raw_dirty = False
+        self.advanced_save_path: Optional[Path] = None
+        self._advanced_source_text: str = ""
+        self.advanced_dirty = False
         self.enable_visual_editor = True
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
@@ -644,6 +754,7 @@ class ConfigurationTab(ttk.Frame):
         text_scroll_x = ttk.Scrollbar(self.raw_container, orient="horizontal", command=self.config_text.xview)
         text_scroll_x.grid(row=1, column=0, sticky="ew")
         self.config_text.configure(xscrollcommand=text_scroll_x.set)
+        self.config_highlighter = TextSyntaxHighlighter(self.config_text, "yaml")
         button_row = ttk.Frame(self.config_tab)
         button_row.grid(row=2, column=0, sticky="e", padx=10, pady=(5, 10))
         ttk.Button(button_row, text="Discard Changes", command=self._reset_config).pack(side="right", padx=6)
@@ -662,6 +773,7 @@ class ConfigurationTab(ttk.Frame):
         snake_scroll_x = ttk.Scrollbar(self.snakefile_tab, orient="horizontal", command=self.snakefile_text.xview)
         snake_scroll_x.grid(row=1, column=0, sticky="ew", padx=10)
         self.snakefile_text.configure(xscrollcommand=snake_scroll_x.set)
+        self.snakefile_highlighter = TextSyntaxHighlighter(self.snakefile_text, "python")
         snake_buttons = ttk.Frame(self.snakefile_tab)
         snake_buttons.grid(row=2, column=0, sticky="e", padx=10, pady=(0, 10))
         self.snakefile_status = ttk.Label(snake_buttons, text="")
@@ -679,6 +791,30 @@ class ConfigurationTab(ttk.Frame):
                 self.snakefile_status.configure(text=f"Loaded from {SNAKEMAKE_GLOBAL_PATH.name}")
                 self.snakefile_save_path = SNAKEMAKE_GLOBAL_PATH
                 self.snakefile_dirty = False
+                self._refresh_snakefile_highlight()
+        self.advanced_tab = ttk.Frame(notebook)
+        self.advanced_tab.columnconfigure(0, weight=1)
+        self.advanced_tab.rowconfigure(0, weight=1)
+        notebook.add(self.advanced_tab, text="config_advanced_settings.yaml")
+        self.advanced_text = tk.Text(self.advanced_tab, wrap="none", font=("Courier New", 10))
+        self.advanced_text.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        self.advanced_text.bind("<KeyRelease>", lambda _: self._mark_advanced_dirty())
+        advanced_scroll_y = ttk.Scrollbar(self.advanced_tab, orient="vertical", command=self.advanced_text.yview)
+        advanced_scroll_y.grid(row=0, column=1, sticky="ns", pady=10)
+        self.advanced_text.configure(yscrollcommand=advanced_scroll_y.set)
+        advanced_scroll_x = ttk.Scrollbar(self.advanced_tab, orient="horizontal", command=self.advanced_text.xview)
+        advanced_scroll_x.grid(row=1, column=0, sticky="ew", padx=10)
+        self.advanced_text.configure(xscrollcommand=advanced_scroll_x.set)
+        self.advanced_highlighter = TextSyntaxHighlighter(self.advanced_text, "yaml")
+        advanced_buttons = ttk.Frame(self.advanced_tab)
+        advanced_buttons.grid(row=2, column=0, sticky="e", padx=10, pady=(0, 10))
+        self.advanced_status = ttk.Label(advanced_buttons, text="")
+        self.advanced_status.pack(side="left", padx=(0, 10))
+        ttk.Button(advanced_buttons, text="Discard Changes", command=self._reset_advanced_settings).pack(
+            side="right", padx=6
+        )
+        ttk.Button(advanced_buttons, text="Save", command=self._save_advanced_settings).pack(side="right")
+        self._load_advanced_settings()
         for label, info in self.extra_files.items():
             file_frame = ttk.Frame(notebook)
             file_frame.columnconfigure(0, weight=1)
@@ -707,9 +843,52 @@ class ConfigurationTab(ttk.Frame):
         if self.config_mode.get() == "raw":
             self.config_text.delete("1.0", "end")
             self.config_text.insert("1.0", text)
+            self._refresh_config_highlight()
         else:
             self._populate_raw_editor()
         self._update_config_status()
+
+    def _refresh_config_highlight(self) -> None:
+        highlighter = getattr(self, "config_highlighter", None)
+        if highlighter:
+            highlighter.refresh()
+
+    def _refresh_snakefile_highlight(self) -> None:
+        highlighter = getattr(self, "snakefile_highlighter", None)
+        if highlighter:
+            highlighter.refresh()
+
+    def _refresh_advanced_highlight(self) -> None:
+        highlighter = getattr(self, "advanced_highlighter", None)
+        if highlighter:
+            highlighter.refresh()
+
+    def _load_advanced_settings(self) -> None:
+        candidates = [
+            PARENT_DIR / "config_advanced_settings.yaml",
+            CONFIG_ADVANCED_SETTINGS_PATH,
+        ]
+        for candidate in candidates:
+            if not candidate.exists():
+                continue
+            try:
+                text = candidate.read_text(encoding="utf-8")
+            except OSError:
+                self.advanced_status.configure(text=f"Could not read {candidate.name}")
+                continue
+            self.advanced_text.delete("1.0", "end")
+            self.advanced_text.insert("1.0", text)
+            self.advanced_save_path = candidate
+            self._advanced_source_text = text
+            self.advanced_dirty = False
+            self.advanced_status.configure(text=f"Loaded from {candidate.name}")
+            self._refresh_advanced_highlight()
+            return
+        self.advanced_save_path = CONFIG_ADVANCED_SETTINGS_PATH
+        self._advanced_source_text = ""
+        self.advanced_text.delete("1.0", "end")
+        self.advanced_status.configure(text=f"{CONFIG_ADVANCED_SETTINGS_PATH.name} not found")
+        self._refresh_advanced_highlight()
     def _load_additional_files(self) -> Dict[str, Dict[str, Any]]:
         entries: Dict[str, Dict[str, Any]] = {}
         specs = [
@@ -748,11 +927,23 @@ class ConfigurationTab(ttk.Frame):
                 "kind": kind,
             }
         return entries
+
+    def _detect_language_for_label(self, label: str) -> str:
+        """Return a best-guess language identifier for syntax highlighting."""
+        name = (label or "").lower()
+        if name in {"snakefile", "snakefile.py"} or name.endswith((".py", ".smk")):
+            return "python"
+        if name.endswith((".yaml", ".yml")) or "config" in name:
+            return "yaml"
+        return "plain"
     def _build_raw_extra_editor(self, label: str, info: Dict[str, Any], parent: tk.Widget) -> None:
         text_widget = tk.Text(parent, wrap="none", font=("Courier New", 10))
         text_widget.grid(row=0, column=0, sticky="nsew", padx=8, pady=(4, 6))
         text_widget.insert("1.0", info.get("baseline", ""))
         text_widget.bind("<KeyRelease>", lambda _event, name=label: self._mark_extra_dirty(name))
+        info["highlighter"] = TextSyntaxHighlighter(
+            text_widget, self._detect_language_for_label(label)
+        )
         scroll_y = ttk.Scrollbar(parent, orient="vertical", command=text_widget.yview)
         scroll_y.grid(row=0, column=1, sticky="ns", pady=(4, 6))
         text_widget.configure(yscrollcommand=scroll_y.set)
@@ -855,6 +1046,9 @@ class ConfigurationTab(ttk.Frame):
         baseline = info.get("baseline") or self._serialize_sections_for_kind(info.get("kind"), info.get("sections"))
         text_widget.insert("1.0", baseline)
         text_widget.bind("<KeyRelease>", lambda _event, name=label: self._mark_extra_dirty(name))
+        info["highlighter"] = TextSyntaxHighlighter(
+            text_widget, self._detect_language_for_label(label)
+        )
         info["text_widget"] = text_widget
 
         scroll_y = ttk.Scrollbar(raw_frame, orient="vertical", command=text_widget.yview)
@@ -1330,6 +1524,9 @@ class ConfigurationTab(ttk.Frame):
         if text_widget is not None:
             text_widget.delete("1.0", "end")
             text_widget.insert("1.0", final_content)
+            highlighter = info.get("highlighter")
+            if isinstance(highlighter, TextSyntaxHighlighter):
+                highlighter.refresh()
 
         info["baseline"] = final_content
         info["dirty"] = False
@@ -1375,6 +1572,9 @@ class ConfigurationTab(ttk.Frame):
         if text_widget is not None:
             text_widget.delete("1.0", "end")
             text_widget.insert("1.0", baseline)
+            highlighter = info.get("highlighter")
+            if isinstance(highlighter, TextSyntaxHighlighter):
+                highlighter.refresh()
         info["dirty"] = False
         status_label = info.get("status_label")
         if status_label:
@@ -1429,6 +1629,7 @@ class ConfigurationTab(ttk.Frame):
             self.config_text.delete("1.0", "end")
             self.config_text.insert("1.0", text)
             self.raw_dirty = False
+            self._refresh_config_highlight()
     def _on_section_select(self, _event: tk.Event) -> None:
         if not self.section_listbox.curselection():
             return
@@ -1761,6 +1962,7 @@ class ConfigurationTab(ttk.Frame):
                 if source_text is not None:
                     self.config_text.delete("1.0", "end")
                     self.config_text.insert("1.0", source_text)
+                    self._refresh_config_highlight()
         self.config_dirty = False
         self.raw_dirty = False
         self._update_config_status()
@@ -1792,6 +1994,48 @@ class ConfigurationTab(ttk.Frame):
         self.snakefile_text.insert("1.0", SNAKEFILE_TEMPLATE)
         self.snakefile_dirty = False
         self.snakefile_status.configure(text="Reset to template")
+        self._refresh_snakefile_highlight()
+
+    def _mark_advanced_dirty(self) -> None:
+        self.advanced_dirty = True
+        self.advanced_status.configure(text="Unsaved changes")
+
+    def _save_advanced_settings(self) -> None:
+        content = self.advanced_text.get("1.0", "end-1c")
+        save_path = self.advanced_save_path
+        if not save_path:
+            initial_dir = CONFIG_ADVANCED_SETTINGS_PATH.parent if CONFIG_ADVANCED_SETTINGS_PATH.parent.exists() else CONFIGS_DIR
+            filename = filedialog.asksaveasfilename(
+                title="Save config_advanced_settings.yaml",
+                defaultextension=".yaml",
+                initialdir=str(initial_dir),
+                initialfile="config_advanced_settings.yaml",
+                filetypes=[("YAML files", "*.yaml *.yml"), ("All files", "*.*")],
+            )
+            if not filename:
+                return
+            save_path = Path(filename)
+            self.advanced_save_path = save_path
+        try:
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            save_path.write_text(content, encoding="utf-8")
+        except OSError as exc:
+            messagebox.showerror("Save failed", f"Could not save file:\n{exc}")
+            return
+        self._advanced_source_text = content
+        self.advanced_dirty = False
+        self.advanced_status.configure(text=f"Saved to {save_path.name}")
+        messagebox.showinfo("config_advanced_settings.yaml Saved", f"Saved to {save_path}")
+
+    def _reset_advanced_settings(self) -> None:
+        self.advanced_text.delete("1.0", "end")
+        self.advanced_text.insert("1.0", self._advanced_source_text)
+        self.advanced_dirty = False
+        self._refresh_advanced_highlight()
+        if self.advanced_save_path and self._advanced_source_text:
+            self.advanced_status.configure(text=f"Reverted to {self.advanced_save_path.name}")
+        else:
+            self.advanced_status.configure(text="Advanced settings cleared")
     def get_config_path(self) -> Optional[Path]:
         """Return the saved config.yaml path, if one exists."""
         return self.config_save_path

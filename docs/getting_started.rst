@@ -57,6 +57,7 @@ Understanding the repository layout will help in navigating the project and conf
    ├── envs/requirements.yml       # Requirements for environment
    ├── config/
    │   ├── config.yaml             # Main configuration file for the pipeline
+   │   ├── config_advanced_settings.yaml  # Optional overrides for downloads and filters
    |   ├── onshore.yaml            # Technology specific configurations
    |   ├── solar.yaml            # Technology specific configurations
    |   └── ...
@@ -75,6 +76,7 @@ Key components of the structure:
 - **Snakefile**: The main Snakemake workflow definition. It describes all the rules (steps) in the pipeline.
 - **requirement.yaml**: Conda environment specification with all required dependencies.
 - **config/**: Contains configuration files. The main ``config.yaml`` defines global settings. 
+- **configs/config_advanced_settings.yaml**: Optional advanced switches for forcing OSM downloads, geometry simplification, WDPA filters, and weather bias limits.
 - **Raw_spatial_data/**: Intended for raw input data required by the pipeline. For example, if the pipeline requires a boundary shapefile or other input datasets, they should be placed here, in the specified folders.
 - **data/**: Outputs produced by the pipeline will be stored here. The pipeline will create subdirectories or files in this folder to organize results.
 - **snakemake/**: Snakemake workflows.

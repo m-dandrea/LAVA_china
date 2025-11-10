@@ -239,39 +239,6 @@ CONFIG_SECTION_DEFINITIONS: List[Dict[str, Any]] = [
             {"key": "additional_exclusion_rasters_folder_name", "type": "string", "description": "Folder for extra exclusion rasters."},
         ],
     },
-    {
-        "name": "geometry_generalization",
-        "displayName": "Geometry Generalization",
-        "description": "Simplification tolerances for study areas and overpass data.",
-        "parameters": [
-            {"key": "study_area", "type": "array", "description": "Study area simplification settings."},
-            {"key": "target_vertices", "type": "number", "description": "Target vertices for overpass simplification."},
-            {"key": "tolerance_min", "type": "number", "description": "Minimum simplification tolerance."},
-            {"key": "tolerance_max", "type": "number", "description": "Maximum simplification tolerance."},
-        ],
-    },
-    {
-        "name": "overpass_features",
-        "displayName": "Overpass & Feature Config",
-        "description": "Feature filters and tagging rules.",
-        "parameters": [
-            {"key": "fclass", "type": "mapping", "description": "Geofabrik feature class filters."},
-            {"key": "overpass_features", "type": "mapping", "description": "Overpass feature tag lists."},
-            {"key": "osm_features_config", "type": "mapping"},
-        ],
-    },
-    {
-        "name": "aspect_weights",
-        "displayName": "Aspect & Exclusions",
-        "description": "Slope, aspect and WDPA status filters.",
-        "parameters": [
-            {"key": "north_facing_pixels", "type": "string", "description": "Exclude north-facing pixels."},
-            {"key": "X", "type": "number", "description": "Slope threshold for exclusion."},
-            {"key": "Y", "type": "number", "description": "Start aspect angle."},
-            {"key": "Z", "type": "number", "description": "End aspect angle."},
-            {"key": "wdpa_consider_status", "type": "array", "description": "WDPA status values to include."},
-        ],
-    },
 ]
 
 ONSHORE_SECTION_DEFINITIONS: List[Dict[str, Any]] = [
