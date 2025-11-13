@@ -23,6 +23,7 @@ DEM_filename: gebco_cutout.tif #[mandatory][string]
 # OSM data
 OSM_source: overpass #[mandatory][string: overpass/geofabrik]
 OSM_folder_name:  #[situational][string] name of the folder within /Raw_Spatial_Data/OSM with all raw OSM shapefiles from Geofabrik; only needed if Geofabrik used as OSM source
+force_osm_download: 0 #if set to 1, OSM data will be downloaded even if it is already present in the folder
 
 # OSM features
 railways: 1
@@ -81,7 +82,7 @@ model_areas_filename:
 
 #--advanced details----------------------------------------------------------------------
 
-force_osm_download: 0 #if set to 1, OSM data will be downloaded even if it is already present in the folder
+
 
 # simplification tolerance for study area
 study_area:
@@ -148,21 +149,19 @@ input_area: resource_grades # 'resource_grades' or 'available_land' or 'study_re
 weather_year: 2015
 
 # Download weather data within study region boundaries, or geographical bounds defined below
-weather_data_extend: geo_bounds # 'study_region' or 'geo_bounds'
+weather_data_extend: study_region # 'study_region' or 'geo_bounds' or "country_code"
 
 # If 'geo_bounds' is selected, define the bounding box here (geographical coordinates)
-weather_data_geo_bounds: { 
-    'west': 73,
-    'south': 15,
-    'east': 135,
+weather_data_geo_bounds:
+    'west': 73
+    'south': 15
+    'east': 135
     'north': 54
-}
 
 # Apply bias correction to ERA5 wind data based on Global Wind Atlas and Global Solar Atlas data
-weather_bias_correction: { 
-  onshorewind: true,
-  offshorewind: true,
+weather_bias_correction:
+  onshorewind: true
+  offshorewind: true
   solar: false
-}
 
 weather_bias_range: [0.5, 2.0] # Limit min and max bias correction factors to this range

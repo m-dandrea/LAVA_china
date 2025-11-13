@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import geopandas as gpd
 import yaml
 import glob
+import argparse
 
 
 def raster2grid(raster_path, target_grid, var_name, method):
@@ -81,6 +82,33 @@ with open(os.path.join("configs/config.yaml"), "r", encoding="utf-8") as f:
 
 country_code = config['country_code']
 country_name_solar_atlas = config['country_name_solar_atlas']
+weather_data_extend = config['weather_data_extend'] 
+country_code = config["country_code"]
+region_name = config['study_region_name']
+
+
+# Initialize parser for command line arguments and define arguments
+parser = argparse.ArgumentParser()
+parser.add_argument("--region", default=region_name, help="study region name")
+parser.add_argument("--method",default="manual", help="method to run the script, e.g., snakemake or manual")
+args = parser.parse_args()
+
+# If running via Snakemake, use the region name and folder name from command line arguments
+if args.method == "snakemake":
+    region_name= args.region
+    print(f"Running via snakemake - measures: study_region: {region_name}")
+else:
+    print(f"Running manually - measures: study_region: {region_name}")
+
+# Determine output file metadata based on weather_data_extend parameter
+if weather_data_extend == 'country_code':
+    output_file_metadata = country_code
+elif weather_data_extend == 'geo_bounds':
+    bounds = config["weather_data_geo_bounds"]
+    bounds = [bounds['west'], bounds['south'], bounds['east'], bounds['north']]  # minx, miny, maxx, maxy
+    output_file_metadata = f"{bounds[0]}-{bounds[1]}-{bounds[2]}-{bounds[3]}"
+elif weather_data_extend == 'study_region':
+    output_file_metadata = region_name
 
 # Load the weather data (all years)
 if config.get('weather_external_data_path'):
@@ -119,10 +147,10 @@ if config['weather_bias_correction'].get('onshorewind') or config['weather_bias_
     ERA5_wnd100m_bias = ERA5_wnd100m_bias.clip(min=min_val, max=max_val)
 
     # Export bias
-    ERA5_wnd100m_bias.to_netcdf(output_path + "/ERA5_wnd100m_bias.nc")
+    ERA5_wnd100m_bias.to_netcdf(output_path + f"/{output_file_metadata}_ERA5_wnd100m_bias.nc")
 
     # Export rasters
-    ERA5_wnd100m_bias.rio.to_raster(output_path + "/ERA5_wnd100m_bias.tif")
+    ERA5_wnd100m_bias.rio.to_raster(output_path + f"/{output_file_metadata}_ERA5_wnd100m_bias.tif")
 
 if config['weather_bias_correction'].get('solar'):
     print("Computing solar bias correction based on Global Solar Atlas data...")
@@ -145,7 +173,7 @@ if config['weather_bias_correction'].get('solar'):
     ERA5_ghi_bias = ERA5_ghi_bias.clip(min=min_val, max=max_val)
 
     # Export bias
-    ERA5_ghi_bias.to_netcdf(output_path + "/ERA5_ghi_bias.nc")
+    ERA5_ghi_bias.to_netcdf(output_path + f"/{output_file_metadata}_ERA5_ghi_bias.nc")
     
     # Export rasters
-    ERA5_ghi_bias.rio.to_raster(output_path + "/ERA5_ghi_bias.tif")
+    ERA5_ghi_bias.rio.to_raster(output_path + f"/{output_file_metadata}_ERA5_ghi_bias.tif")
