@@ -119,9 +119,6 @@ cutout_files = glob.glob(os.path.join(weather_data_path, f'*{weather_year}*'))
 x1, y1, x2, y2 = region.to_crs(global_crs_obj).total_bounds 
 offset = 1 # Offset to ensure the cutout includes the entire region
 
-# Open netcdf cutout files
-ds = xr.open_mfdataset(cutout_files)
-
 # Pre-allocate a dataframe for potentials and time series
 time = pd.date_range(start=f'{weather_year}-01-01', end=f'{weather_year}-12-31 23:00', freq='h')
 df_pot = pd.DataFrame(index=time, columns=potential_list)
@@ -154,7 +151,7 @@ for cutout_file in cutout_files:
 
         # Load the potential
         if input_area == 'resource_grades':
-            potentialPath = os.path.join(data_path, 'suitability', f"{p}_{local_crs_tag}.tif")
+            potentialPath = os.path.join(data_path, 'suitability', f"{p}_{scenario}_{local_crs_tag}.tif")
             excluder.add_raster(potentialPath, codes=1, invert=True)
         elif input_area == 'available_land':
             potentialPath = os.path.join(data_path, 'available_land', f"{region_name}_{technology}_{scenario}_available_land_{local_crs_tag}.tif")

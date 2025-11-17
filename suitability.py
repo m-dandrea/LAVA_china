@@ -285,7 +285,11 @@ for tech in suitability_techs:
         else:
             inclusion_area = tech_grades[tech][rg]
 
-        if inclusion_area.sum() < min_size_rg:
+        if inclusion_area.sum() <= 0:
+            print(f'No potential found for {tech} resource grade {rg} in {region_name}.')
+            continue
+
+        if (inclusion_area.sum() < min_size_rg):
             print(f'Potential found for {rg} in {region_name} is below minimum. Adding to distributed area.')
             tech_grades[tech]['distributed'] = union([tech_grades[tech]['distributed'], inclusion_area])
             continue
@@ -312,6 +316,10 @@ if multi_tech:
         arrays = [tech_grades[tech][rg] for tech, rg in zip(suitability_techs, tech_combo)]
         inclusion_area = overlap(arrays)
 
+        if inclusion_area.sum() <= 0:
+            print(f'No potential found for {tech} resource grade {rg} in {region_name}.')
+            continue
+
         if inclusion_area.sum() < min_size_rg:
             print(f'Potential found for combination {tech_combo} and in {region_name} is below minimum. Adding to distributed area.')
             for tech in suitability_techs:
@@ -334,17 +342,20 @@ if multi_tech:
 
 # Process the distributed areas found above
 distributed_area = union([tech_grades[tech]['distributed'] for tech in suitability_techs])
-df_potentials.loc[f"{region_name}_distributed", "Potential"] = np.sum(distributed_area) * pixel_area_km2
-export_raster(distributed_area, os.path.join(output_path, f'{region_name}_distributed_{scenario}_{local_crs_tag}.tif'), ref, local_crs_obj)
+if distributed_area.sum() > 0:
+    df_potentials.loc[f"{region_name}_distributed", "Potential"] = np.sum(distributed_area) * pixel_area_km2
+    export_raster(distributed_area, os.path.join(output_path, f'{region_name}_distributed_{scenario}_{local_crs_tag}.tif'), ref, local_crs_obj)
 
-if suitability_params:
-    for t in config_suitability["tiers"]:
+    if suitability_params:
+        for t in config_suitability["tiers"]:
+            for tech in suitability_techs:
+                tier_area = filter(distributed_area, costmap[tech], config_suitability["tiers"][t][0],config_suitability["tiers"][t][1])
+                df_tier_potentials[tech].loc[f"{region_name}_distributed", t] = np.sum(tier_area) / np.sum(distributed_area)
+    else:
         for tech in suitability_techs:
-            tier_area = filter(distributed_area, costmap[tech], config_suitability["tiers"][t][0],config_suitability["tiers"][t][1])
-            df_tier_potentials[tech].loc[f"{region_name}_distributed", t] = np.sum(tier_area) / np.sum(distributed_area)
+            df_tier_potentials[tech].loc[f"{region_name}_distributed", "Potential share"] = 1
 else:
-    for tech in suitability_techs:
-        df_tier_potentials[tech].loc[f"{region_name}_distributed", "Potential share"] = 1
+    print(f'No potential found for distributed areas in {region_name}.')
 
 
 # Export potentials to CSV
