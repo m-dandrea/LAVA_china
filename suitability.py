@@ -59,6 +59,7 @@ else:
 data_path = os.path.join(dirname, 'data', region_name)
 data_path_available_land = os.path.join(data_path, 'available_land')
 data_from_proximity = os.path.join(data_path, 'proximity')
+weather_data_path = os.path.abspath(config["weather_external_data_path"]) 
 
 output_path = os.path.join(data_path,"suitability")
 if not os.path.exists(output_path):
@@ -118,14 +119,45 @@ elif input_area == 'study_region':
         pixel_area_km2 = abs(ref.transform.a * ref.transform.e) / 1e6
         potential[tech] = ref.read(1)
 
+# Energy resource quality based on either raw or bias-adjusted weather data
+bias_adjust = config["weather_bias_correction"]
 
-GWAPath = os.path.join(data_path, f'wind_{region_name}_{local_crs_tag}.tif')
-GWA = rasterio.open(GWAPath)
-GWA_reproj = align_to_reference(GWA, ref, resampling=Resampling.bilinear)
+# Cutout metadata file with the geographical extend
+cutout_metadata_file = os.path.join(weather_data_path, 'cutout_metadata.json')
+with open(cutout_metadata_file, 'r') as f:
+    cutout_metadata = json.load(f)
 
-GSAPath = os.path.join(data_path, f'solar_{region_name}_{local_crs_tag}.tif')
-GSA = rasterio.open(GSAPath)
-GSA_reproj = align_to_reference(GSA, ref, resampling=Resampling.bilinear)
+weather_resource_quality = {}
+for tech in suitability_techs:
+    if bias_adjust[tech]: # Use bias-corrected data
+        if tech in ['onshorewind', 'offshorewind']:
+            ERA5_wind_mean_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_wnd100m_mean.tif') 
+            ERA5_wind_mean = rasterio.open(ERA5_wind_mean_path)
+            ERA5_wind_mean_reproj = align_to_reference(ERA5_wind_mean, ref, resampling=Resampling.nearest)
+            GWA_bias_correct_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_wnd100m_bias.tif')
+            GWA_bias_correct = rasterio.open(GWA_bias_correct_path)
+            GWA_bias_correct_reproj = align_to_reference(GWA_bias_correct, ref, resampling=Resampling.nearest)
+            weather_resource_quality[tech] = ERA5_wind_mean_reproj * GWA_bias_correct_reproj
+        elif tech == 'solar':
+            ERA5_ghi_mean_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_ghi_mean.tif') 
+            ERA5_ghi_mean = rasterio.open(ERA5_ghi_mean_path)
+            ERA5_ghi_mean_reproj = align_to_reference(ERA5_ghi_mean, ref, resampling=Resampling.nearest)
+            GSA_bias_correct_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_ghi_bias.tif')
+            GSA_bias_correct = rasterio.open(GSA_bias_correct_path)
+            GSA_bias_correct_reproj = align_to_reference(GSA_bias_correct, ref, resampling=Resampling.nearest)
+            weather_resource_quality[tech] = ERA5_ghi_mean_reproj * GSA_bias_correct_reproj
+    else: # Use ERA5 mean
+        if tech in ['onshorewind', 'offshorewind']:
+            ERA5_wind_mean_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_wnd100m_mean.tif') 
+            ERA5_wind_mean = rasterio.open(ERA5_wind_mean_path)
+            ERA5_wind_mean_reproj = align_to_reference(ERA5_wind_mean, ref, resampling=Resampling.nearest)
+            weather_resource_quality[tech] = ERA5_wind_mean_reproj
+        elif tech == 'solar':
+            ERA5_ghi_mean_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_ghi_mean.tif') 
+            ERA5_ghi_mean = rasterio.open(ERA5_ghi_mean_path)
+            ERA5_ghi_mean_reproj = align_to_reference(ERA5_ghi_mean, ref, resampling=Resampling.nearest)
+            weather_resource_quality[tech] = ERA5_ghi_mean_reproj
+
 
 if 'terrain' in suitability_params:
     terrain_ruggedness_path = os.path.join(data_path, 'derived_from_DEM', f'TerrainRuggednessIndex_{region_name}_{local_crs_tag}.tif')
@@ -176,6 +208,9 @@ if suitability_params:
             costmap[tech] *= (1 + terrain_factor * config_suitability["modifier_weights"]["terrain"][tech])
 
             export_raster(terrain_factor, os.path.join(output_path, f'terrain_factor_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
+            export_raster(terrain_ruggedness_reproj, os.path.join(output_path, f'terrain_ruggedness_reproj_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
+
+            terrain_ruggedness_reproj
 
         # --- TOPOGRAPHY (optional) ---
         if "topography" in suitability_params:
@@ -260,10 +295,7 @@ for tech in suitability_techs:
     distributed_area[tech] = diff(potential[tech], potential_filtered[tech])
 
     # Filter areas based on resource grades
-    if tech in ['onshorewind', 'offshorewind']:
-        tech_grades[tech] = {rg: filter(potential_filtered[tech], GWA_reproj, tech_configs[tech]["rg_thr"][rg][0], tech_configs[tech]["rg_thr"][rg][1]) for rg in RG[tech]}
-    elif tech == 'solar':
-        tech_grades[tech] = {rg: filter(potential_filtered[tech], GSA_reproj, tech_configs[tech]["rg_thr"][rg][0], tech_configs[tech]["rg_thr"][rg][1]) for rg in RG[tech]}
+    tech_grades[tech] = {rg: filter(potential_filtered[tech], weather_resource_quality[tech], tech_configs[tech]["rg_thr"][rg][0], tech_configs[tech]["rg_thr"][rg][1]) for rg in RG[tech]}
     tech_grades[tech]['distributed'] = distributed_area[tech]
 
 # Find all tech potentials that do not overlap with other tech potentials
@@ -358,13 +390,13 @@ else:
     print(f'No potential found for distributed areas in {region_name}.')
 
 
-# Export potentials to CSV
+# Export potentials to CSV (only relevant resource grades)
 print(f'Exporting potentials to {rel_path(output_path)}')
 potentials_file = os.path.join(output_path, f'{region_name}_{scenario}_resource_grade_potentials.csv')
-df_potentials.to_csv(potentials_file)
+df_potentials.dropna(how='all').to_csv(potentials_file)
 for tech in suitability_techs:
     df_tier_potentials_file = os.path.join(output_path, f'{region_name}_{tech}_{scenario}_tier_potentials.csv')
-    df_tier_potentials[tech].to_csv(df_tier_potentials_file)
+    df_tier_potentials[tech].dropna(how='all').to_csv(df_tier_potentials_file)
 
 # Export lists with the relevant resource grades
 relevant_resource_grades = df_potentials.dropna(how='all').index.tolist()

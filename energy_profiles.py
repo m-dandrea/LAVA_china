@@ -45,18 +45,6 @@ if args.method == "snakemake":
 else:
     print(f"Running manually - measures: region={region_name}, technology={technology}, scenario={scenario}, weather_year={weather_year}")
 
-
-# Determine input file metadata based on weather_data_extend parameter
-if weather_data_extend == 'country_code':
-    bias_file_metadata = country_code
-elif weather_data_extend == 'geo_bounds':
-    bounds = config["weather_data_geo_bounds"]
-    bounds = [bounds['west'], bounds['south'], bounds['east'], bounds['north']]  # minx, miny, maxx, maxy
-    bias_file_metadata = f"{bounds[0]}-{bounds[1]}-{bounds[2]}-{bounds[3]}"
-elif weather_data_extend == 'study_region':
-    bias_file_metadata = region_name
-
-
 #load the technology specific configuration file
 tech_config_file = os.path.join("configs", f"{technology}.yaml")
 with open(tech_config_file, "r", encoding="utf-8") as f:
@@ -113,7 +101,17 @@ if config.get('weather_external_data_path'):
     weather_data_path = os.path.abspath(config["weather_external_data_path"])
 else:
     weather_data_path = os.path.join(dirname, 'Raw_Spatial_Data', 'Weather_data')
-cutout_files = glob.glob(os.path.join(weather_data_path, f'*{weather_year}*'))
+
+# Cutout metadata file with the geographical extend
+cutout_metadata_file = os.path.join(weather_data_path, 'cutout_metadata.json')
+with open(cutout_metadata_file, 'r') as f:
+    cutout_metadata = json.load(f)
+
+cutout_files = glob.glob(os.path.join(weather_data_path, f'{cutout_metadata["weather_data_extend"]}_{weather_year}*.nc'))
+
+# If no cutout files found, raise error
+if not cutout_files:
+    raise FileNotFoundError(f"No cutout files found for year {weather_year} in {weather_data_path} with extend {cutout_metadata['weather_data_extend']}")
 
 # Regional entent
 x1, y1, x2, y2 = region.to_crs(global_crs_obj).total_bounds 
@@ -132,12 +130,12 @@ for cutout_file in cutout_files:
     if config['weather_bias_correction'][technology]:
         # Load bias correction data
         if technology in ['onshorewind', 'offshorewind']:
-            ERA5_wnd100m_bias_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{bias_file_metadata}_ERA5_wnd100m_bias.nc')
+            ERA5_wnd100m_bias_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_wnd100m_bias.nc')
             ERA5_wnd100m_bias = xr.open_dataset(ERA5_wnd100m_bias_path).sel(x=slice(x1 - offset, x2 + offset), y=slice(y1 - offset, y2 + offset))
             # Apply bias correction
             cutout.data['wnd100m'] = cutout.data['wnd100m'] * ERA5_wnd100m_bias['wnd100m']
         elif technology == 'solar':
-            ERA5_ghi_bias_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{bias_file_metadata}_ERA5_ghi_bias.nc')
+            ERA5_ghi_bias_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_ghi_bias.nc')
             ERA5_ghi_bias = xr.open_dataset(ERA5_ghi_bias_path).sel(x=slice(x1 - offset, x2 + offset), y=slice(y1 - offset, y2 + offset))
             # Apply bias correction
             cutout.data['influx_direct'] = cutout.data['influx_direct'] * ERA5_ghi_bias['ghi']
@@ -161,12 +159,12 @@ for cutout_file in cutout_files:
             excluder.add_geometry(potentialPath, invert=True)
 
         # Availability of the area
-        masked, transform = excluder.compute_shape_availability(region)
-        fig, ax = plt.subplots()
-        excluder.plot_shape_availability(region)
-        available_area = masked.sum(dtype=np.float64) * excluder.res**2
-        eligible_share = available_area / region.geometry.item().area
-        print(f"The eligibility share is: {eligible_share:.2%}")
+        #masked, transform = excluder.compute_shape_availability(region)
+        #fig, ax = plt.subplots()
+        #excluder.plot_shape_availability(region)
+        #available_area = masked.sum(dtype=np.float64) * excluder.res**2
+        #eligible_share = available_area / region.geometry.item().area
+        #print(f"The eligibility share is: {eligible_share:.2%}")
 
         # `A` is an DataArray with 3 dimensions (`shape`, `x`, `y`) and very sparse data. 
         # It indicates the relative overlap of weather cell `(x, y)` with geometry `region` while excluding the area specified by the `excluder`. 
