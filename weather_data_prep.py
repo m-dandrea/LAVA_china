@@ -1,5 +1,6 @@
 import atlite
 import os
+import json
 import yaml
 import argparse
 import geopandas as gpd
@@ -97,3 +98,10 @@ if not os.path.exists(cutout_file_path_2):
     cutout_2.prepare()
 else:
     print(f"Cutout file for time period {t_start_2} to {t_end_2} already exists. Skipping download.")
+
+# Save json with cutout_output_file_metadata
+cutout_metadata = {
+    "weather_data_extend": cutout_output_file_metadata
+}
+with open(os.path.join(weather_data_path, 'cutout_metadata.json'), 'w') as f:
+    json.dump(cutout_metadata, f, indent=2)
