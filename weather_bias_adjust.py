@@ -149,8 +149,8 @@ ERA5_wnd100m_mean = era5_ds['wnd100m'].mean(dim=['time']) # m/s
 # Convert to 4326 CRS for exporting
 ERA5_ghi_mean = ERA5_ghi_mean.rio.write_crs("EPSG:4326")
 ERA5_wnd100m_mean = ERA5_wnd100m_mean.rio.write_crs("EPSG:4326")
-ERA5_ghi_mean.rio.to_raster(output_path + f"/{output_file_metadata}_ERA5_ghi_mean.tif")
-ERA5_wnd100m_mean.rio.to_raster(output_path + f"/{output_file_metadata}_ERA5_wnd100m_mean.tif")
+ERA5_ghi_mean.rio.to_raster(os.path.join(output_path, f"{cutout_metadata['weather_data_extend']}_ERA5_ghi_mean.tif"))
+ERA5_wnd100m_mean.rio.to_raster(os.path.join(output_path, f"{cutout_metadata['weather_data_extend']}_ERA5_wnd100m_mean.tif"))
 
 if config['weather_bias_correction'].get('onshorewind') or config['weather_bias_correction'].get('offshorewind'):
     print("Computing wind bias correction based on Global Wind Atlas data...")
@@ -171,9 +171,9 @@ if config['weather_bias_correction'].get('onshorewind') or config['weather_bias_
     ERA5_wnd100m_bias = ERA5_wnd100m_bias.clip(min=min_val, max=max_val)
 
     # Export bias
-    ERA5_wnd100m_bias.to_netcdf(output_path + f"/{output_file_metadata}_ERA5_wnd100m_bias.nc")
-    ERA5_wnd100m_bias.rio.to_raster(output_path + f"/{output_file_metadata}_ERA5_wnd100m_bias.tif")
-    GWA_ds.rio.to_raster(output_path + f"/{output_file_metadata}_GWA_wnd100m_mean.tif")
+    ERA5_wnd100m_bias.to_netcdf(os.path.join(output_path, f"{cutout_metadata['weather_data_extend']}_ERA5_wnd100m_bias.nc"))
+    ERA5_wnd100m_bias.rio.to_raster(os.path.join(output_path, f"{cutout_metadata['weather_data_extend']}_ERA5_wnd100m_bias.tif"))
+    GWA_ds.rio.to_raster(os.path.join(output_path, f"{cutout_metadata['weather_data_extend']}_GWA_wnd100m_mean.tif"))
 
 if config['weather_bias_correction'].get('solar'):
     print("Computing solar bias correction based on Global Solar Atlas data...")
@@ -194,6 +194,6 @@ if config['weather_bias_correction'].get('solar'):
     ERA5_ghi_bias = ERA5_ghi_bias.clip(min=min_val, max=max_val)
 
     # Export bias
-    ERA5_ghi_bias.to_netcdf(output_path + f"/{output_file_metadata}_ERA5_ghi_bias.nc")
-    ERA5_ghi_bias.rio.to_raster(output_path + f"/{output_file_metadata}_ERA5_ghi_bias.tif")
-    GSA_ds.rio.to_raster(output_path + f"/{output_file_metadata}_GSA_ghi_mean.tif")
+    ERA5_ghi_bias.to_netcdf(os.path.join(output_path, f"{cutout_metadata['weather_data_extend']}_ERA5_ghi_bias.nc"))
+    ERA5_ghi_bias.rio.to_raster(os.path.join(output_path, f"{cutout_metadata['weather_data_extend']}_ERA5_ghi_bias.tif"))
+    GSA_ds.rio.to_raster(os.path.join(output_path, f"{cutout_metadata['weather_data_extend']}_GSA_ghi_mean.tif"))
