@@ -9,9 +9,11 @@ import json
 from pathlib import Path
 import yaml
 from utils.data_preprocessing import clean_region_name, rel_path
+from utils.spatial_mapping import resolve_selection
 import pickle
 import argparse
 import glob
+
 
 #------------------------------------------- Load configuration
 dirname = os.getcwd() 
@@ -73,7 +75,7 @@ local_crs_tag = ''.join(auth) if auth else local_crs_obj.to_string().replace(":"
 
 # load pixel size
 if tech_config['resolution_manual'] is not None:
-    res = config['resolution_manual']
+    res = tech_config['resolution_manual']
 else:
     with open(os.path.join(data_path, f'pixel_size_{region_name}_{local_crs_tag}.json'), 'r') as fp:
         res = json.load(fp)
@@ -181,12 +183,22 @@ for cutout_file in cutout_files:
         # Simulate the technology profiles based on the configuration
         match technology:
             case "solar":
-                technology_path = os.path.join(dirname, 'configs', 'technologies', tech_config["panel"])
+                region_group = config.get("region_group", {}).get(region_name, {})
+
+                if "dist" in p:
+                    area_type = 'distributed'
+                else:
+                    area_type = 'utility'
+
+                tech_select = resolve_selection(tech_config, "panel", area=area_type, region_group=region_group, region=region_name)
+                technology_path = os.path.join(dirname, 'configs', 'technologies', f'{tech_select}.yaml')
+                orient_select = resolve_selection(tech_config, "orientation", area=area_type, region_group=region_group, region=region_name)
+                print(f"Using solar panel configuration: {tech_select} with orientation: {orient_select}")
 
                 ds_tech = cutout.pv(
                     matrix=capacity_matrix,
                     panel=Path(technology_path),
-                    orientation="latitude_optimal",
+                    orientation=orient_select,
                     index=region.index,
                     per_unit=True
                 )
@@ -194,12 +206,22 @@ for cutout_file in cutout_files:
                 ds_tech = ds_tech * tech_config["tech_derate"]
 
             case "solartracking":
-                technology_path = os.path.join(dirname, 'configs', 'technologies', tech_config["panel"])
+                region_group = config.get("region_group", {}).get(region_name, {})
+
+                if "dist" in p:
+                    area_type = 'distributed'
+                else:
+                    area_type = 'utility'
+
+                tech_select = resolve_selection(tech_config, "panel", area=area_type, region_group=region_group, region=region_name)
+                technology_path = os.path.join(dirname, 'configs', 'technologies', f'{tech_select}.yaml')
+                orient_select = resolve_selection(tech_config, "orientation", area=area_type, region_group=region_group, region=region_name)
+                print(f"Using solar panel configuration: {tech_select} with tracking orientation: {orient_select}")
 
                 ds_tech = cutout.pv(
                     matrix=capacity_matrix,
                     panel=Path(technology_path),
-                    orientation="latitude_optimal",
+                    orientation=orient_select,
                     index=region.index,
                     tracking="horizontal",
                     per_unit=True
@@ -208,25 +230,45 @@ for cutout_file in cutout_files:
                 ds_tech = ds_tech * tech_config["tech_derate"]
 
             case "onshorewind":
-                technology_path = os.path.join(dirname, 'configs', 'technologies', tech_config["turbine"])
+                region_group = config.get("region_group", {}).get(region_name, {})
+
+                if "dist" in p:
+                    area_type = 'distributed'
+                else:
+                    area_type = 'utility'
+
+                tech_select = resolve_selection(tech_config, "turbine", area=area_type, region_group=region_group, region=region_name)
+                technology_path = os.path.join(dirname, 'configs', 'technologies', f'{tech_select}.yaml')
+                print(f"Using onshore wind turbine configuration: {tech_select}")
                 
                 ds_tech = cutout.wind(
                     matrix=capacity_matrix,
                     turbine=Path(technology_path),
                     index=region.index,
-                    per_unit=True
+                    per_unit=True,
+                    add_cutout_windspeed=True
                 )
                 # Apply derate
                 ds_tech = ds_tech * tech_config["tech_derate"]
 
             case "offshorewind":
-                technology_path = os.path.join(dirname, 'configs', 'technologies', tech_config["turbine"])
+                region_group = config.get("region_group", {}).get(region_name, {})
+
+                if "dist" in p:
+                    area_type = 'distributed'
+                else:
+                    area_type = 'utility'
+
+                tech_select = resolve_selection(tech_config, "turbine", area=area_type, region_group=region_group, region=region_name)
+                technology_path = os.path.join(dirname, 'configs', 'technologies', f'{tech_select}.yaml')
+                print(f"Using offshore wind turbine configuration: {tech_select}")
 
                 ds_tech = cutout.wind(
                     matrix=capacity_matrix,
                     turbine=Path(technology_path),
                     index=region.index,
-                    per_unit=True
+                    per_unit=True,
+                    add_cutout_windspeed=True
                 )
                 # Apply derate
                 ds_tech = ds_tech * tech_config["tech_derate"]
@@ -237,8 +279,9 @@ for cutout_file in cutout_files:
 
 # Check for missing values and give warning if any are found
 if df_pot.isnull().values.any():
-    print("Warning: Missing values found in the resource grades dataframe.")
+    raise ValueError("Missing values found in the resource grades dataframe.")
 
 # Save the resource grade time series to a CSV file
 output_file=os.path.join(output_path, f"{region_name}_{technology}_{scenario}_profile_{weather_year}.csv")
 df_pot.to_csv(output_file)
+

@@ -173,11 +173,22 @@ if 'topography' in suitability_params:
     dem = rasterio.open(dem_path)
     dem_reproj = align_to_reference(dem, ref, resampling=Resampling.bilinear)
 
+if 'shore_distance' in suitability_params:
+    shore_distance_path = os.path.join(data_from_proximity, f'shore_distance.tif')
+    shore_distance = rasterio.open(shore_distance_path)
+    shore_distance_reproj = align_to_reference(shore_distance, ref, resampling=Resampling.bilinear)
+
 if 'substation_distance' in suitability_params:
     substation_distance_path = os.path.join(data_from_proximity, f'substation_distance.tif')
     substation_distance = rasterio.open(substation_distance_path)
     substation_distance_reproj = align_to_reference(substation_distance, ref, resampling=Resampling.bilinear)
 
+if "custom" in suitability_params:
+    custom_costmap_name = config_suitability["custom_map_name"]
+    #custom_costmap_path = os.path.join(data_path, "additional_rasters", f"{custom_costmap_name}_{region_name}_{local_crs_tag}.tif")
+    custom_costmap_path = os.path.join(dirname, "Raw_Spatial_Data", "additional_rasters", f"{custom_costmap_name}.tif")
+    custom_costmap = rasterio.open(custom_costmap_path)
+    custom_costmap_reproj = align_to_reference(custom_costmap, ref, resampling=Resampling.bilinear)
 
 #---------------- Dynamic costmap based on selected suitability categories ----------------
 
@@ -228,7 +239,7 @@ if suitability_params:
 
         # --- SUBSTATION DISTANCE (optional) ---
         if "substation_distance" in suitability_params:
-            avg_sub = config_suitability["average_sub_dist"][config_suitability["region_set"][region_name]]
+            avg_sub = config_suitability["average_sub_dist"][config["region_group"][region_name]]
             substation_factor = substation_distance_reproj / avg_sub[tech] - 1
 
             # Apply substation distance weight
@@ -238,11 +249,19 @@ if suitability_params:
 
         # --- REGION (optional) ---
         if "region" in suitability_params:
-            region_key = config_suitability["region_set"][region_name]
+            region_key = config["region_group"][region_name]
             region_factor = config_suitability["region_modifier"][region_key][tech] - 1
 
             # Apply region weight
             costmap[tech] *= (1 + region_factor * config_suitability["modifier_weights"]["region"][tech])
+
+        # --- Custom costmaps (optional) ---
+        if "custom" in suitability_params:
+            custom_factor = custom_costmap_reproj - 1
+
+            # Apply custom costmap weight
+            costmap[tech] *= (1 + custom_factor * config_suitability["modifier_weights"]["custom"][tech])
+
 
         # --- Export cost maps ---
         export_raster(costmap[tech] * potential[tech],  os.path.join(output_path, f'costmap_{tech}_{scenario}_available_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
@@ -316,7 +335,7 @@ for tech in suitability_techs:
             inclusion_area = diff(tech_grades[tech][rg], union(other_tech_grades))
         else:
             inclusion_area = tech_grades[tech][rg]
-
+        
         if inclusion_area.sum() <= 0:
             print(f'No potential found for {tech} resource grade {rg} in {region_name}.')
             continue
