@@ -3,16 +3,18 @@ import json
 import yaml
 
 
+from utils.data_preprocessing import resolve_weather_years
+
 
 with open("configs/config_snakemake.yaml", "r", encoding="utf-8") as f:
     config_snakemake = yaml.load(f, Loader=yaml.FullLoader)
 
 
-#define parameters , keep them in list as it iterates, multiple input can be included. 
+# define parameters , keep them in list as it iterates, multiple input can be included.
 regions = config_snakemake["study_region_name"]
 technologies = config_snakemake["technologies"]
-scenario= config_snakemake["scenario"]
-weather_years = config_snakemake["weather_years"]
+scenario = config_snakemake["scenario"]
+weather_years = resolve_weather_years(config_snakemake.get("weather_years"))
 
 def logpath(region, filename):
     return Path("data") / region / "snakemake_log" / filename
