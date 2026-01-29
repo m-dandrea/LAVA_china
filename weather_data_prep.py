@@ -1,5 +1,6 @@
 import atlite
 import os
+import json
 import yaml
 import argparse
 import geopandas as gpd
@@ -39,18 +40,21 @@ else:
 if config.get('weather_external_data_path'):
     weather_data_path = os.path.abspath(config["weather_external_data_path"])
 else:
-    weather_data_path = os.path.join(dirname, 'Raw_Spatial_Data', 'Weather_data')
+    weather_data_path = os.path.join(dirname, 'Raw_Spatial_Data', 'weather_data')
 os.makedirs(weather_data_path, exist_ok=True)
 
 
 if weather_data_extend == 'country_code':
+    print(f"Getting country bounds for country code: {country_code}")
     bounds = get_country_bounds_from_code(country_code)
     cutout_output_file_metadata = country_code
 elif weather_data_extend == 'geo_bounds':
+    print("Using geo bounds from config.yaml")
     bounds = config["weather_data_geo_bounds"]
     bounds = [bounds['west'], bounds['south'], bounds['east'], bounds['north']]  # minx, miny, maxx, maxy
     cutout_output_file_metadata = f"{bounds[0]}-{bounds[1]}-{bounds[2]}-{bounds[3]}"
 elif weather_data_extend == 'study_region':
+    print(f"Using study region bounds for region: {region_name}")
     regionPath = os.path.join(dirname, 'data', f'{region_name}', f'{region_name}_EPSG4326.geojson')
     region = gpd.read_file(regionPath)
     bounds = region.total_bounds # minx, miny, maxx, maxy
@@ -94,3 +98,10 @@ if not os.path.exists(cutout_file_path_2):
     cutout_2.prepare()
 else:
     print(f"Cutout file for time period {t_start_2} to {t_end_2} already exists. Skipping download.")
+
+# Save json with cutout_output_file_metadata
+cutout_metadata = {
+    "weather_data_extend": cutout_output_file_metadata
+}
+with open(os.path.join(weather_data_path, 'cutout_metadata.json'), 'w') as f:
+    json.dump(cutout_metadata, f, indent=2)

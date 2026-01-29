@@ -57,7 +57,7 @@ max_wind_speed: null #m/s
 
 # inclusion filters (connected with AND logic) (meters)
 substations_inclusion_buffer: null
-transmission_inclusion_buffer: 10000
+transmission_inclusion_buffer: null
 roads_inclusion_buffer: null
 
 # area filter
@@ -78,4 +78,4 @@ rg_thr:
     WG1: [4.5, 5.5]
     WG2: [5.5, 6.5]
     WG3: [6.5, 7.5]
-    WG4: [7.5, 25]
+    WG4: [7.5, .inf]

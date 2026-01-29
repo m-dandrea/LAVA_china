@@ -22,28 +22,29 @@ config_file = os.path.join("configs", "config.yaml")
 with open(config_file, "r", encoding="utf-8") as f:
     config = yaml.load(f, Loader=yaml.FullLoader)
 
-region_name = config['study_region_name'] #if country is studied, then use country name
+# Always get region from config for default
+region_name = config['study_region_name']
 region_name_clean = clean_region_name(region_name)
-technology = config.get('technology') #technology, e.g., 'wind' or 'solar'
-scenario = config.get('scenario', 'ref') # scenario, e.g., 'ref' or 'high'
 
-
-#Initialize parser for command line arguments and define arguments
+# Set up argument parser with NO default for technology/scenario
 parser = argparse.ArgumentParser()
 parser.add_argument("--region", default=region_name_clean, help="region name")
-parser.add_argument("--method",default="manual", help="method to run the script, e.g., snakemake or manual")
-parser.add_argument("--scenario", default=scenario, help="scenario name")
-parser.add_argument('--technology', default=f"{technology}")
+parser.add_argument("--method", default="manual", help="method to run the script, e.g., snakemake or manual")
+parser.add_argument("--scenario", help="scenario name (overrides config.yaml if provided)")
+parser.add_argument("--technology", help="technology (overrides config.yaml if provided)")
 args = parser.parse_args()
 
 # If running via Snakemake, use the region name and folder name from command line arguments
 if args.method == "snakemake":
     region_name_clean = clean_region_name(args.region)
-    technology = args.technology
-    scenario = args.scenario
+    technology = args.technology if args.technology is not None else config.get('technology')
+    scenario = args.scenario if args.scenario is not None else config.get('scenario', 'ref')
     print(f'\nExclusion for {region_name_clean}')
     print(f"Running via snakemake - measures: region={region_name_clean}, technology={technology}, scenario={scenario}")
 else:
+    # If run from VS Code Run button or terminal (manual), use CLI args if provided, else config.yaml
+    technology = args.technology if args.technology is not None else config.get('technology')
+    scenario = args.scenario if args.scenario is not None else config.get('scenario', 'ref')
     print(f'\nExclusion for {region_name_clean}')
     print(f"Running manually - measures: region={region_name_clean}, technology={technology}, scenario={scenario}")
 
@@ -128,9 +129,11 @@ plantsPath = os.path.join(data_path_OSM, f'{OSM_source}_plants.gpkg')
 plants = 1 if os.path.isfile(plantsPath) else 0
 
 # Additional exclusion polygons
-additional_exclusion_polygons_Path = os.path.join(data_path, 'additional_exclusion_polygons')
-additional_exclusion_polygons = 1 if os.path.exists(additional_exclusion_polygons_Path) else 0
-
+additional_exclusion_polygons_folderPath = os.path.join(data_path, 'additional_exclusion_polygons')
+additional_exclusion_polygons = 1 if os.path.exists(additional_exclusion_polygons_folderPath) else 0
+# Additional exclusion rasters
+additional_exclusion_rasters_folderPath = os.path.join(data_path, 'additional_exclusion_rasters')
+additional_exclusion_rasters = 1 if os.path.exists(additional_exclusion_rasters_folderPath) else 0
 
 # load unique land use codes
 with open(os.path.join(data_path, f'landuses_{region_name_clean}.json'), 'r') as fp:
@@ -340,13 +343,36 @@ elif plants == 0: info_list_not_available.append("existing plants")
 
 
 # add additional exclusion polygons
-if additional_exclusion_polygons==1 and tech_config['additional_exclusion_polygons_buffer']:   
-    for i, (buffer_value, filename) in enumerate(zip(tech_config['additional_exclusion_polygons_buffer'], os.listdir(additional_exclusion_polygons_Path))):
-        filepath = os.path.join(additional_exclusion_polygons_Path, filename)    # Construct the full file path
-        excluder.add_geometry(filepath, buffer=buffer_value)
-        info_list_exclusion.append(f'additional exclusion polygon file {i+1}: {buffer_value}')
+buffer_config = tech_config.get('additional_exclusion_polygons_buffer')
+if additional_exclusion_polygons==1 and buffer_config:   
+    for filename in os.listdir(additional_exclusion_polygons_folderPath):
+        if filename in buffer_config:              # check if buffer is defined
+            buffer_value = buffer_config[filename]
+            filepath = os.path.join(additional_exclusion_polygons_folderPath, filename)
+            excluder.add_geometry(filepath, buffer=buffer_value)
+            info_list_exclusion.append(f'additional exclusion polygons file: {filename}: {buffer_value}'        )
 elif additional_exclusion_polygons == 1 and tech_config['additional_exclusion_polygons_buffer'] is None: info_list_not_selected.append("additional_exclusion_polygons_buffer")
 elif additional_exclusion_polygons == 0: info_list_not_available.append("additional_exclusion_polygons_buffer")
+
+# if additional_exclusion_polygons==1 and tech_config['additional_exclusion_polygons_buffer']:   
+#     for i, (buffer_value, filename) in enumerate(zip(tech_config['additional_exclusion_polygons_buffer'], os.listdir(additional_exclusion_polygons_folderPath))):
+#         filepath = os.path.join(additional_exclusion_polygons_folderPath, filename)    # Construct the full file path
+#         excluder.add_geometry(filepath, buffer=buffer_value)
+#         info_list_exclusion.append(f'additional exclusion polygon file {i+1}: {buffer_value}')
+# elif additional_exclusion_polygons == 1 and tech_config['additional_exclusion_polygons_buffer'] is None: info_list_not_selected.append("additional_exclusion_polygons_buffer")
+# elif additional_exclusion_polygons == 0: info_list_not_available.append("additional_exclusion_polygons_buffer")
+
+# add additional exclusion rasters
+buffer_config = tech_config.get('additional_exclusion_rasters_buffer')
+if additional_exclusion_rasters==1 and buffer_config:   
+    for filename in os.listdir(additional_exclusion_rasters_folderPath):
+        if filename in buffer_config:              # check if buffer is defined
+            buffer_value = buffer_config[filename]
+            filepath = os.path.join(additional_exclusion_rasters_folderPath, filename)
+            excluder.add_raster(filepath, codes=range(0,1e6), buffer=buffer_value, crs=global_crs_obj)
+            info_list_exclusion.append(f'additional exclusion raster file: {filename}: {buffer_value}'        )
+elif additional_exclusion_rasters == 1 and not buffer_config: info_list_not_selected.append("additional_exclusion_rasters_buffer")
+elif additional_exclusion_rasters == 0: info_list_not_available.append("additional_exclusion_polygons_buffer")
 
 
 # INCLUSION
@@ -397,13 +423,13 @@ masked, transform = shape_availability(region.geometry, excluder)
 
 available_area = masked.sum() * excluder.res**2
 eligible_share = available_area / region.geometry.item().area
+available_area_km2 = available_area * 1e-6
 
 # print results
 print(f"\nThe eligibility share is: {eligible_share:.2%}")
-print(f'The available area is: {available_area:.2f} km²')
-
+print(f'The available area is: {available_area_km2:.2f} km²')
 if tech_config['deployment_density']:
-    power_potential = available_area*1e-6 * tech_config['deployment_density']
+    power_potential = available_area_km2 * tech_config['deployment_density']
     print(f'Power potential: {power_potential:.2} MW')
 
 print('\nfollowing data was considered during exclusion:')
