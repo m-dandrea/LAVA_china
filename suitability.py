@@ -59,7 +59,6 @@ else:
 data_path = os.path.join(dirname, 'data', region_name)
 data_path_available_land = os.path.join(data_path, 'available_land')
 data_from_proximity = os.path.join(data_path, 'proximity')
-weather_data_path = os.path.abspath(config["weather_external_data_path"]) 
 
 output_path = os.path.join(data_path,"suitability")
 if not os.path.exists(output_path):
@@ -119,45 +118,14 @@ elif input_area == 'study_region':
         pixel_area_km2 = abs(ref.transform.a * ref.transform.e) / 1e6
         potential[tech] = ref.read(1)
 
-# Energy resource quality based on either raw or bias-adjusted weather data
-bias_adjust = config["weather_bias_correction"]
 
-# Cutout metadata file with the geographical extend
-cutout_metadata_file = os.path.join(weather_data_path, 'cutout_metadata.json')
-with open(cutout_metadata_file, 'r') as f:
-    cutout_metadata = json.load(f)
+GWAPath = os.path.join(data_path, f'wind_{region_name}_{local_crs_tag}.tif')
+GWA = rasterio.open(GWAPath)
+GWA_reproj = align_to_reference(GWA, ref, resampling=Resampling.bilinear)
 
-weather_resource_quality = {}
-for tech in suitability_techs:
-    if bias_adjust[tech]: # Use bias-corrected data
-        if tech in ['onshorewind', 'offshorewind']:
-            ERA5_wind_mean_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_wnd100m_mean.tif') 
-            ERA5_wind_mean = rasterio.open(ERA5_wind_mean_path)
-            ERA5_wind_mean_reproj = align_to_reference(ERA5_wind_mean, ref, resampling=Resampling.nearest)
-            GWA_bias_correct_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_wnd100m_bias.tif')
-            GWA_bias_correct = rasterio.open(GWA_bias_correct_path)
-            GWA_bias_correct_reproj = align_to_reference(GWA_bias_correct, ref, resampling=Resampling.nearest)
-            weather_resource_quality[tech] = ERA5_wind_mean_reproj * GWA_bias_correct_reproj
-        elif tech == 'solar':
-            ERA5_ghi_mean_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_ghi_mean.tif') 
-            ERA5_ghi_mean = rasterio.open(ERA5_ghi_mean_path)
-            ERA5_ghi_mean_reproj = align_to_reference(ERA5_ghi_mean, ref, resampling=Resampling.nearest)
-            GSA_bias_correct_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_ghi_bias.tif')
-            GSA_bias_correct = rasterio.open(GSA_bias_correct_path)
-            GSA_bias_correct_reproj = align_to_reference(GSA_bias_correct, ref, resampling=Resampling.nearest)
-            weather_resource_quality[tech] = ERA5_ghi_mean_reproj * GSA_bias_correct_reproj
-    else: # Use ERA5 mean
-        if tech in ['onshorewind', 'offshorewind']:
-            ERA5_wind_mean_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_wnd100m_mean.tif') 
-            ERA5_wind_mean = rasterio.open(ERA5_wind_mean_path)
-            ERA5_wind_mean_reproj = align_to_reference(ERA5_wind_mean, ref, resampling=Resampling.nearest)
-            weather_resource_quality[tech] = ERA5_wind_mean_reproj
-        elif tech == 'solar':
-            ERA5_ghi_mean_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_ghi_mean.tif') 
-            ERA5_ghi_mean = rasterio.open(ERA5_ghi_mean_path)
-            ERA5_ghi_mean_reproj = align_to_reference(ERA5_ghi_mean, ref, resampling=Resampling.nearest)
-            weather_resource_quality[tech] = ERA5_ghi_mean_reproj
-
+GSAPath = os.path.join(data_path, f'solar_{region_name}_{local_crs_tag}.tif')
+GSA = rasterio.open(GSAPath)
+GSA_reproj = align_to_reference(GSA, ref, resampling=Resampling.bilinear)
 
 if 'terrain' in suitability_params:
     terrain_ruggedness_path = os.path.join(data_path, 'derived_from_DEM', f'TerrainRuggednessIndex_{region_name}_{local_crs_tag}.tif')
@@ -208,9 +176,6 @@ if suitability_params:
             costmap[tech] *= (1 + terrain_factor * config_suitability["modifier_weights"]["terrain"][tech])
 
             export_raster(terrain_factor, os.path.join(output_path, f'terrain_factor_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
-            export_raster(terrain_ruggedness_reproj, os.path.join(output_path, f'terrain_ruggedness_reproj_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
-
-            terrain_ruggedness_reproj
 
         # --- TOPOGRAPHY (optional) ---
         if "topography" in suitability_params:
@@ -295,7 +260,10 @@ for tech in suitability_techs:
     distributed_area[tech] = diff(potential[tech], potential_filtered[tech])
 
     # Filter areas based on resource grades
-    tech_grades[tech] = {rg: filter(potential_filtered[tech], weather_resource_quality[tech], tech_configs[tech]["rg_thr"][rg][0], tech_configs[tech]["rg_thr"][rg][1]) for rg in RG[tech]}
+    if tech in ['onshorewind', 'offshorewind']:
+        tech_grades[tech] = {rg: filter(potential_filtered[tech], GWA_reproj, tech_configs[tech]["rg_thr"][rg][0], tech_configs[tech]["rg_thr"][rg][1]) for rg in RG[tech]}
+    elif tech == 'solar':
+        tech_grades[tech] = {rg: filter(potential_filtered[tech], GSA_reproj, tech_configs[tech]["rg_thr"][rg][0], tech_configs[tech]["rg_thr"][rg][1]) for rg in RG[tech]}
     tech_grades[tech]['distributed'] = distributed_area[tech]
 
 # Find all tech potentials that do not overlap with other tech potentials
@@ -317,11 +285,7 @@ for tech in suitability_techs:
         else:
             inclusion_area = tech_grades[tech][rg]
 
-        if inclusion_area.sum() <= 0:
-            print(f'No potential found for {tech} resource grade {rg} in {region_name}.')
-            continue
-
-        if (inclusion_area.sum() < min_size_rg):
+        if inclusion_area.sum() < min_size_rg:
             print(f'Potential found for {rg} in {region_name} is below minimum. Adding to distributed area.')
             tech_grades[tech]['distributed'] = union([tech_grades[tech]['distributed'], inclusion_area])
             continue
@@ -348,10 +312,6 @@ if multi_tech:
         arrays = [tech_grades[tech][rg] for tech, rg in zip(suitability_techs, tech_combo)]
         inclusion_area = overlap(arrays)
 
-        if inclusion_area.sum() <= 0:
-            print(f'No potential found for {tech} resource grade {rg} in {region_name}.')
-            continue
-
         if inclusion_area.sum() < min_size_rg:
             print(f'Potential found for combination {tech_combo} and in {region_name} is below minimum. Adding to distributed area.')
             for tech in suitability_techs:
@@ -374,29 +334,26 @@ if multi_tech:
 
 # Process the distributed areas found above
 distributed_area = union([tech_grades[tech]['distributed'] for tech in suitability_techs])
-if distributed_area.sum() > 0:
-    df_potentials.loc[f"{region_name}_distributed", "Potential"] = np.sum(distributed_area) * pixel_area_km2
-    export_raster(distributed_area, os.path.join(output_path, f'{region_name}_distributed_{scenario}_{local_crs_tag}.tif'), ref, local_crs_obj)
+df_potentials.loc[f"{region_name}_distributed", "Potential"] = np.sum(distributed_area) * pixel_area_km2
+export_raster(distributed_area, os.path.join(output_path, f'{region_name}_distributed_{scenario}_{local_crs_tag}.tif'), ref, local_crs_obj)
 
-    if suitability_params:
-        for t in config_suitability["tiers"]:
-            for tech in suitability_techs:
-                tier_area = filter(distributed_area, costmap[tech], config_suitability["tiers"][t][0],config_suitability["tiers"][t][1])
-                df_tier_potentials[tech].loc[f"{region_name}_distributed", t] = np.sum(tier_area) / np.sum(distributed_area)
-    else:
+if suitability_params:
+    for t in config_suitability["tiers"]:
         for tech in suitability_techs:
-            df_tier_potentials[tech].loc[f"{region_name}_distributed", "Potential share"] = 1
+            tier_area = filter(distributed_area, costmap[tech], config_suitability["tiers"][t][0],config_suitability["tiers"][t][1])
+            df_tier_potentials[tech].loc[f"{region_name}_distributed", t] = np.sum(tier_area) / np.sum(distributed_area)
 else:
-    print(f'No potential found for distributed areas in {region_name}.')
+    for tech in suitability_techs:
+        df_tier_potentials[tech].loc[f"{region_name}_distributed", "Potential share"] = 1
 
 
-# Export potentials to CSV (only relevant resource grades)
+# Export potentials to CSV
 print(f'Exporting potentials to {rel_path(output_path)}')
 potentials_file = os.path.join(output_path, f'{region_name}_{scenario}_resource_grade_potentials.csv')
-df_potentials.dropna(how='all').to_csv(potentials_file)
+df_potentials.to_csv(potentials_file)
 for tech in suitability_techs:
     df_tier_potentials_file = os.path.join(output_path, f'{region_name}_{tech}_{scenario}_tier_potentials.csv')
-    df_tier_potentials[tech].dropna(how='all').to_csv(df_tier_potentials_file)
+    df_tier_potentials[tech].to_csv(df_tier_potentials_file)
 
 # Export lists with the relevant resource grades
 relevant_resource_grades = df_potentials.dropna(how='all').index.tolist()
