@@ -1,5 +1,6 @@
 import os
 import geopandas as gpd
+import geonamescache
 import json
 import rasterio
 from rasterio.mask import mask
@@ -18,6 +19,83 @@ import pandas as pd
 import rasterstats 
 
 import logging
+
+
+def resolve_weather_years(raw_years):
+    """
+    Normalise arbitrary weather-year inputs into a list.
+
+    Supported forms:
+    - Single integers/strings (2015 or "2015") -> [2015]
+    - Iterables (lists/sets) -> flattened
+    - Comma-separated strings ("2015,2020") -> [2015, 2020]
+    - Ranges using "start*end" inclusive of start, exclusive of end,
+      consistent with ``range`` semantics. Values are emitted as strings.
+    """
+
+    def _expand(value):
+        if value is None:
+            return []
+        if isinstance(value, (list, tuple, set)):
+            expanded = []
+            for item in value:
+                expanded.extend(_expand(item))
+            return expanded
+        if isinstance(value, (int, float)):
+            return [int(value)]
+        if isinstance(value, str):
+            token = value.strip()
+            if not token:
+                return []
+            if "*" in token:
+                start_text, _, end_text = token.partition("*")
+                try:
+                    start_year = int(start_text)
+                    end_year = int(end_text)
+                except ValueError:
+                    return [token]
+                if start_year > end_year:
+                    start_year, end_year = end_year, start_year
+                return [str(y) for y in range(start_year, end_year)]
+            if "," in token:
+                expanded = []
+                for part in token.split(","):
+                    expanded.extend(_expand(part))
+                return expanded
+            try:
+                return [int(token)]
+            except ValueError:
+                return [token]
+        return [value]
+
+    seen = set()
+    normalised = []
+    for entry in _expand(raw_years):
+        key = str(entry)
+        if not key:
+            continue
+        if key not in seen:
+            seen.add(key)
+            normalised.append(entry)
+    return normalised
+
+def get_country_bounds_from_code(country_code):
+    """
+    Retrieve bounding box [minx, miny, maxx, maxy] for a country ISO2/ISO3 code.
+    """
+    gc = geonamescache.GeonamesCache()
+    countries = gc.get_countries()
+    code = country_code.upper()
+    country_info = countries.get(code)
+    if not country_info:
+        country_info = next(
+            (info for info in countries.values() if info.get("iso3", "").upper() == code),
+            None,
+        )
+    if not country_info:
+        raise ValueError(f"Country code '{country_code}' not found.")
+    bbox = country_info["bbox"]
+    return [bbox["minlng"], bbox["minlat"], bbox["maxlng"], bbox["maxlat"]]
 
 
 #download WDPA functions
@@ -163,7 +241,8 @@ def clip_reproject_raster(input_raster_path, region_name_clean, gdf, data_name, 
     resampling_options = {
         'nearest': Resampling.nearest,
         'bilinear': Resampling.bilinear,
-        'cubic': Resampling.cubic
+        'cubic': Resampling.cubic,
+        'mode': Resampling.mode
     }
 
     dtype_options = {
@@ -235,7 +314,8 @@ def reproject_raster(input_raster_path, region_name_clean, target_crs, resamplin
     resampling_options = {
         'nearest': Resampling.nearest,
         'bilinear': Resampling.bilinear,
-        'cubic': Resampling.cubic
+        'cubic': Resampling.cubic,
+        'mode': Resampling.mode
     }
 
     dtype_options = {
@@ -301,7 +381,8 @@ def co_register(infile, match, resampling_method, outfile, dtype): #source: http
     resampling_options = {
         'nearest': Resampling.nearest,
         'bilinear': Resampling.bilinear,
-        'cubic': Resampling.cubic
+        'cubic': Resampling.cubic,
+        'mode': Resampling.mode
     }
 
     dtype_options = {
