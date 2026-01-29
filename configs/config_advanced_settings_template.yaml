@@ -1,8 +1,6 @@
 
 #--advanced details----------------------------------------------------------------------
 
-force_osm_download: 0 #if set to 1, OSM data will be downloaded even if it is already present in the folder
-
 # simplification tolerance for study area
 study_area:
   tolerance: 0.0005

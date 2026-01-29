@@ -23,6 +23,7 @@ DEM_filename: gebco_cutout.tif #[mandatory][string] name of DEM file
 # OSM data
 OSM_source: overpass #[mandatory][string: overpass/geofabrik]
 OSM_folder_name:  #[situational][string] name of the folder within /Raw_Spatial_Data/OSM with all raw OSM shapefiles from Geofabrik; only needed if Geofabrik used as OSM source
+force_osm_download: 0 #if set to 1, OSM data will be downloaded even if it is already present in the folder
 
 # OSM features
 railways: 1
@@ -81,7 +82,7 @@ model_areas_filename:
 
 #--advanced details----------------------------------------------------------------------
 
-force_osm_download: 0 #if set to 1, OSM data will be downloaded even if it is already present in the folder
+
 
 # simplification tolerance for study area
 study_area:
@@ -144,47 +145,21 @@ weather_years: [2019] # list of years
 
 weather_data_extend: country # 'study_region' or 'geo_bounds'
 
+# Download weather data within study region boundaries, or geographical bounds defined below
+weather_data_extend: study_region # 'study_region' or 'geo_bounds' or "country_code"
 
-#--Suitability cost assumptions----------------------------------------------------------------------
+# If 'geo_bounds' is selected, define the bounding box here (geographical coordinates)
+weather_data_geo_bounds:
+    'west': 73
+    'south': 15
+    'east': 135
+    'north': 54
 
-# Minimum area for resource grades (% of total available land area)
-min_area_rg: 0.05
-
-# Cost tiers
-tiers: {
-    'Tier1': [0.5, 1.00],
-    'Tier2': [1.00, 1.50],
-    'Tier3': [1.50, 2.00],
-    'Tier4': [2.00, 2.50],
-    'Tier5': [2.50, 100],
-    }
-
-# Substation distance (meters)
-average_sub_dist: {
-    'onshorewind': 5000,
-    'solar': 5000
-}
-
-# Terrain modifier (terrain types defined by ruggedness ranges)
-terrain_modifier:
-# Plains
-  - range: [0, 150]
-    cost: {
-        'onshorewind': 1.02,
-        'solar': 0.99
-    }
-# Hills
-  - range: [150, 450]
-    cost: {
-        'onshorewind': 1.07,
-        'solar': 1.04
-    }
-# Mountains
-  - range: [450, 10000]
-    cost: {
-        'onshorewind': 1.17,
-        'solar': 1.09
-    }
+# Apply bias correction to ERA5 wind data based on Global Wind Atlas and Global Solar Atlas data
+weather_bias_correction:
+  onshorewind: true
+  offshorewind: true
+  solar: false
 
 landcover_modifier: {
     60: { # Bare / sparse vegetation

@@ -46,6 +46,8 @@
 !Raw_Spatial_Data/additional_exclusion_polygons/.gitkeep
 !Raw_Spatial_Data/global_solar_wind_atlas
 !Raw_Spatial_Data/global_solar_wind_atlas/.gitkeep
+!Raw_Spatial_Data/weather_data/.gitkeep
+!Raw_Spatial_Data/weather_data/bias_correction_factors/.gitkeep
 !weather_data
 !weather_data/wind_speed_regions.ipynb
 # --- Config files ---
