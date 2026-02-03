@@ -8,6 +8,7 @@ input_area: available_land # 'available_land' or 'study_region'
 suitability_params:
   terrain: true
   topography: false
+  shore_distance: false
   substation_distance: true
   region: true
   custom: false
@@ -113,6 +114,21 @@ topography_modifier:
     cost:
       offshorewind: 1.000
 
+# Shore distance modifier (factors relative to average investment cost)
+shore_distance_modifier:
+  - range: [0, 20000]
+    cost:
+      offshorewind: 1.000
+  - range: [20000, 50000]
+    cost:
+      offshorewind: 1.000
+  - range: [50000, 100000]
+    cost:
+      offshorewind: 1.500
+  - range: [100000, .inf]
+    cost:
+      offshorewind: 1.000
+
 # Regional cost modifiers (factors relative to average investment cost)
 region_modifier:
   North:
@@ -133,3 +149,37 @@ region_modifier:
   South:
     onshorewind: 1.122
     solar: 1.160
+
+# Share of land cover types suitable for each technology
+suitability_coefficients:
+  10: # Tree cover
+    onshorewind: 0.60
+    solar: 0.05
+  20: # Shrubland
+    onshorewind: 0.60
+    solar: 0.05
+  30: # Grassland
+    onshorewind: 0.60
+    solar: 0.05
+  40: # Cropland
+#    onshorewind: 0.0
+    solar: 0.15
+#  50: # Urban/Built-up
+#    onshorewind: 0.0
+#    solar: 0.0
+  60: # Bareland
+    onshorewind: 0.80
+    solar: 0.30
+
+  #70: # Snow/Ice
+  #  onshorewind: 0.0
+  #  solar: 0.0
+  #80: # Water bodies
+  #  onshorewind: 0.0
+  #  solar: 0.0
+  #90: # Wetlands
+  #  onshorewind: 0.0
+  #  solar: 0.0
+  #100: # Moss and lichen
+  #  onshorewind: 0.0
+  #  solar: 0.0

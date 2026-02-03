@@ -101,23 +101,30 @@ suitability_params = {k for k,v in config_suitability["suitability_params"].item
 
 
 #--------------------------------------- Data ----------------------------------------
+# Reference grid
+input_area = config_suitability['input_area']
+if input_area == 'available_land':
+    ref_path = path = os.path.join(data_path_available_land, f"{region_name}_{suitability_techs[0]}_{scenario}_available_land_{local_crs_tag}.tif")
+    ref = rasterio.open(ref_path)
+    pixel_area_km2 = abs(ref.transform.a * ref.transform.e) / 1e6
+elif input_area == 'study_region':
+    ref_path = os.path.join(data_path, f"{region_name}_{local_crs_tag}.geojson")
+    ref, memfile = rasterize(vector_path=ref_path, crs=local_crs_obj, resolution=res)
+    pixel_area_km2 = abs(ref.transform.a * ref.transform.e) / 1e6
 
 potential = {}
-input_area = config_suitability['input_area']
 if input_area == 'available_land':
     for tech in suitability_techs:
         path = os.path.join(data_path_available_land, f"{region_name}_{tech}_{scenario}_available_land_{local_crs_tag}.tif")
-        potential[tech] = rasterio.open(path).read(1)
-        # Reference grid
-        ref = rasterio.open(path) # Should be standardized to a region raster or intersection of all rasters
-        pixel_area_km2 = abs(ref.transform.a * ref.transform.e) / 1e6
+        potential[tech] = align_to_reference(rasterio.open(path), ref, resampling=Resampling.nearest)
+        #clip to range of 0 and 1
+        potential[tech] = np.clip(potential[tech], 0, 1)    
 elif input_area == 'study_region':
     for tech in suitability_techs:
         path = os.path.join(data_path, f"{region_name}_{local_crs_tag}.geojson")
         # Reference grid
-        ref, memfile = rasterize(vector_path=path, crs=local_crs_obj, resolution=res)
-        pixel_area_km2 = abs(ref.transform.a * ref.transform.e) / 1e6
-        potential[tech] = ref.read(1)
+        pot, memfile = rasterize(vector_path=path, crs=local_crs_obj, resolution=res)
+        potential[tech] = pot.read(1)
 
 # Energy resource quality based on either raw or bias-adjusted weather data
 bias_adjust = config["weather_bias_correction"]
@@ -269,6 +276,22 @@ if suitability_params:
 else:
     print('No suitability parameters selected. Calculating only resource grades')
 
+# Suitability factor: Share of land area suitable for development
+if "suitability_coefficients" in config_suitability:
+    suitability_factor = {}
+    for tech in suitability_techs:
+        suitability_factor[tech] = np.zeros_like(ref.read(1), dtype=float)
+        for landcover_type, vals in config_suitability["suitability_coefficients"].items():
+            if tech not in vals:
+                continue
+            mask = (land_cover_reproj == landcover_type)
+            suitability_factor[tech][mask] = vals[tech]
+        export_raster(suitability_factor[tech], os.path.join(output_path, f'suitability_factor_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
+    # Average tech suitability factor
+    suitability_factor["average"] = np.zeros_like(ref.read(1), dtype=float)
+    for tech in suitability_techs:
+        suitability_factor["average"] += suitability_factor[tech]
+        suitability_factor["average"] /= len(suitability_techs)
 
 # Resource grades
 RG = {}
@@ -298,6 +321,10 @@ else:
         df_tier_potentials[tech] = pd.DataFrame(index=areas, columns=["Potential share"])
 
 # Total available land area
+solar_avail = np.sum(potential['solar']) * pixel_area_km2 if 'solar' in suitability_techs else 0
+wind_avail = np.sum(potential['onshorewind']) * pixel_area_km2 if 'onshorewind' in suitability_techs else 0
+print(f'Total available land area for solar: {solar_avail:.0f} km²')
+print(f'Total available land area for onshore wind: {wind_avail:.0f} km²')
 total_avail = np.sum(union([potential[tech] for tech in suitability_techs])) * pixel_area_km2
 print(f'Total available land area: {total_avail:.0f} km²')
 
@@ -315,6 +342,7 @@ for tech in suitability_techs:
 
     # Filter areas based on resource grades
     tech_grades[tech] = {rg: filter(potential_filtered[tech], weather_resource_quality[tech], tech_configs[tech]["rg_thr"][rg][0], tech_configs[tech]["rg_thr"][rg][1]) for rg in RG[tech]}
+
     tech_grades[tech]['distributed'] = distributed_area[tech]
 
 # Find all tech potentials that do not overlap with other tech potentials
@@ -346,13 +374,17 @@ for tech in suitability_techs:
             continue
 
         # Save potential area and export raster
-        df_potentials.loc[f"{region_name}_{rg}", "Potential"] = np.sum(inclusion_area) * pixel_area_km2
         export_raster(inclusion_area, os.path.join(output_path, f'{region_name}_{rg}_{scenario}_{local_crs_tag}.tif'), ref, local_crs_obj)
+        if "suitability_coefficients" in config_suitability:
+            inclusion_area = inclusion_area * suitability_factor[tech]
+        df_potentials.loc[f"{region_name}_{rg}", "Potential"] = np.sum(inclusion_area) * pixel_area_km2
 
         # If there are suitability categories selected, calculate tiered potentials as share of the full potential
         if suitability_params:
             for t in config_suitability["tiers"]:
                 tier_area = filter(inclusion_area, costmap[tech], config_suitability["tiers"][t][0], config_suitability["tiers"][t][1])
+                if "suitability_coefficients" in config_suitability:
+                    tier_area = tier_area * suitability_factor[tech]
                 df_tier_potentials[tech].loc[f"{region_name}_{rg}", t] = np.sum(tier_area) / np.sum(inclusion_area)
         else:
             df_tier_potentials[tech].loc[f"{region_name}_{rg}", "Potential share"] = 1
@@ -378,13 +410,17 @@ if multi_tech:
             continue
 
         # Save potential area and export raster
-        df_potentials.loc[f"{region_name}_" + "_".join(tech_combo), "Potential"] = np.sum(inclusion_area) * pixel_area_km2
         export_raster(inclusion_area, os.path.join(output_path, f"{region_name}_" + "_".join(tech_combo) + f"_{scenario}_{local_crs_tag}.tif"), ref, local_crs_obj)
+        if "suitability_coefficients" in config_suitability:
+            inclusion_area = inclusion_area * suitability_factor[tech]
+        df_potentials.loc[f"{region_name}_" + "_".join(tech_combo), "Potential"] = np.sum(inclusion_area) * pixel_area_km2
 
         if suitability_params:
             for t in config_suitability["tiers"]:
                 for tech in suitability_techs:
                     tier_area = filter(inclusion_area, costmap[tech], config_suitability["tiers"][t][0], config_suitability["tiers"][t][1])
+                    if "suitability_coefficients" in config_suitability:
+                        tier_area = tier_area * suitability_factor[tech]
                     df_tier_potentials[tech].loc[f"{region_name}_" + "_".join(tech_combo), t] = np.sum(tier_area) / np.sum(inclusion_area)
         else:
             for tech in suitability_techs:
@@ -393,6 +429,9 @@ if multi_tech:
 
 # Process the distributed areas found above
 distributed_area = union([tech_grades[tech]['distributed'] for tech in suitability_techs])
+if "suitability_coefficients" in config_suitability:
+    distributed_area = distributed_area * suitability_factor["average"]
+
 if distributed_area.sum() > 0:
     df_potentials.loc[f"{region_name}_distributed", "Potential"] = np.sum(distributed_area) * pixel_area_km2
     export_raster(distributed_area, os.path.join(output_path, f'{region_name}_distributed_{scenario}_{local_crs_tag}.tif'), ref, local_crs_obj)
@@ -401,13 +440,15 @@ if distributed_area.sum() > 0:
         for t in config_suitability["tiers"]:
             for tech in suitability_techs:
                 tier_area = filter(distributed_area, costmap[tech], config_suitability["tiers"][t][0],config_suitability["tiers"][t][1])
+                if "suitability_coefficients" in config_suitability:
+                    tier_area = tier_area * suitability_factor["average"]
                 df_tier_potentials[tech].loc[f"{region_name}_distributed", t] = np.sum(tier_area) / np.sum(distributed_area)
     else:
         for tech in suitability_techs:
             df_tier_potentials[tech].loc[f"{region_name}_distributed", "Potential share"] = 1
 else:
     print(f'No potential found for distributed areas in {region_name}.')
-
+    
 
 # Export potentials to CSV (only relevant resource grades)
 print(f'Exporting potentials to {rel_path(output_path)}')
@@ -417,7 +458,11 @@ for tech in suitability_techs:
     df_tier_potentials_file = os.path.join(output_path, f'{region_name}_{tech}_{scenario}_tier_potentials.csv')
     df_tier_potentials[tech].dropna(how='all').to_csv(df_tier_potentials_file)
 
-# Export lists with the relevant resource grades
+# Export lists with the resource grades
+all_resource_grades = df_potentials.index.tolist()
+all_resource_grades_file = os.path.join(output_path, f'{region_name}_{scenario}_all_resource_grades.json')
+with open(all_resource_grades_file, 'w') as f:
+    json.dump(all_resource_grades, f)
 relevant_resource_grades = df_potentials.dropna(how='all').index.tolist()
 relevant_resource_grades_file = os.path.join(output_path, f'{region_name}_{scenario}_relevant_resource_grades.json')
 with open(relevant_resource_grades_file, 'w') as f:
