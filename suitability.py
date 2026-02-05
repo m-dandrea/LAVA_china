@@ -280,7 +280,7 @@ else:
 if "suitability_coefficients" in config_suitability:
     suitability_factor = {}
     for tech in suitability_techs:
-        suitability_factor[tech] = np.zeros_like(ref.read(1), dtype=float)
+        suitability_factor[tech] = np.ones_like(ref.read(1), dtype=float)
         for landcover_type, vals in config_suitability["suitability_coefficients"].items():
             if tech not in vals:
                 continue
@@ -288,7 +288,7 @@ if "suitability_coefficients" in config_suitability:
             suitability_factor[tech][mask] = vals[tech]
         export_raster(suitability_factor[tech], os.path.join(output_path, f'suitability_factor_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
     # Average tech suitability factor
-    suitability_factor["average"] = np.zeros_like(ref.read(1), dtype=float)
+    suitability_factor["average"] = np.ones_like(ref.read(1), dtype=float)
     for tech in suitability_techs:
         suitability_factor["average"] += suitability_factor[tech]
         suitability_factor["average"] /= len(suitability_techs)
