@@ -52,6 +52,7 @@
 !weather_data/wind_speed_regions.ipynb
 # --- Config files ---
 !configs
+!configs/examples
 !configs/config_template.yaml
 !configs/config_advanced_settings_template.yaml
 !configs/config_template_china.yaml
