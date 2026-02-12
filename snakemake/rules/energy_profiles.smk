@@ -1,6 +1,4 @@
 rule energy_profiles:
-    input:
-         logpath("{region}", "weather_data_prep_{weather_year}.done")
     output:
         touch(logpath("{region}", "energy_profiles_{technology}_{weather_year}_{scenario}.done"))
     params:

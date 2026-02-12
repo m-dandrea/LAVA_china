@@ -27,6 +27,7 @@
 !utils/gadm_levels_to_geojson.py
 !utils/delete_scenario_results.py
 !utils/results_analysis.py
+!utils/spatial_mapping.py
 # --- Raw input data ---
 !Raw_Spatial_Data
 !Raw_Spatial_Data/landcover
@@ -58,6 +59,7 @@
 !configs/solar_template_china.yaml
 !configs/onshorewind_template.yaml
 !configs/solar_template.yaml
+!configs/offshorewind_template_china.yaml
 !configs/suitability_template_china.yaml
 !configs/technologies
 !configs/technologies/HW_distributed_farm.yaml
