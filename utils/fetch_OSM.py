@@ -92,7 +92,22 @@ def osm_to_gpkg(
         selector=selector,
         includeGeometry=True
         ) # Build Overpass query
-    result = overpass.query(query, timeout=timeout) # Execute query with timeout
+
+    # Retry logic: try up to 3 times before failing
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            result = overpass.query(query, timeout=timeout)
+            break
+        except Exception as e:
+            if attempt == max_retries:
+                raise
+            wait = 2 ** attempt
+            print(
+                f"Overpass query failed (attempt {attempt}/{max_retries}): {e}."
+                f" Retrying in {wait}s..."
+            )
+            time.sleep(wait)
 
     if not result.elements():
         print(f"No elements found for {feature_key} in {region_name}")
