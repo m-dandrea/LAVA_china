@@ -1,0 +1,185 @@
+# Technologies included in suitability analysis (technologies competing for same areas within region)
+suitability_techs: ['solar', 'onshorewind'] #['offshorewind'] 
+
+# Method to define the area for suitability analysis
+input_area: available_land # 'available_land' or 'study_region'
+
+# Enable/disable suitability categories
+suitability_params:
+  terrain: true
+  topography: false
+  shore_distance: false
+  substation_distance: true
+  region: true
+  custom: false
+
+# Custom map name (must also be selected in the standard config to ensure the layer is processed)
+custom_map_name: null
+
+# Weight of individual modifiers in the final suitability weight (% of investment cost the component affects)
+modifier_weights:
+  terrain:
+    onshorewind: 1
+    solar: 1
+
+  topography:
+    onshorewind: 1
+    solar: 1
+    offshorewind: 1
+
+  shore_distance:
+    offshorewind: 1
+
+  substation_distance:
+    onshorewind: 0.1
+    solar: 0.1
+
+  region:
+    onshorewind: 1
+    solar: 1
+
+  custom:
+    onshorewind: 1
+    solar: 1
+    offshorewind: 1
+
+# Cost tiers ranges (factors relative to average investment cost)
+tiers:
+  Tier 1: [0, 0.738]
+  Tier 2: [0.738, 0.782]
+  Tier 3: [0.782, 0.955]
+  Tier 4: [0.955, 1.034]
+  Tier 5: [1.034, .inf]
+
+# Minimum area for resource grades and distributed areas (km2)
+min_area_distributed: 25 # Isolated areas with less than this size (connected) will be considered as distributed generation
+min_area_rg: 125 # Minimum area for a given resource grade to be considered. Smaller areas will be assigned to distributed generation
+
+# Substation distance (meters)
+average_sub_dist:
+  North:
+    onshorewind: 50000
+    solar: 50000
+  East:
+    onshorewind: 25000
+    solar: 25000
+  Central:
+    onshorewind: 25000
+    solar: 25000
+  Northeast:
+    onshorewind: 50000
+    solar: 50000
+  Northwest:
+    onshorewind: 50000
+    solar: 50000
+  South:
+    onshorewind: 25000
+    solar: 25000
+
+# Terrain modifier (factors relative to average investment cost). Terrain types defined by ruggedness ranges.
+terrain_modifier:
+# Plains
+  - range: [0, 150]
+    cost:
+      onshorewind: 1.000
+      solar: 1.000
+# Hills
+  - range: [150, 450]
+    cost:
+      onshorewind: 1.045
+      solar: 1.049
+# Mountains
+  - range: [450, 1500]
+    cost:
+      onshorewind: 1.145
+      solar: 1.097
+
+landcover_modifier:
+  60:
+    onshorewind: 0.719
+    solar: 0.852
+
+# Topography modifier (factors relative to average investment cost). Topography defined as elevation or sea depth ranges in meters.
+topography_modifier:
+# Shallow water
+  - range: [-40, 0]
+    cost:
+      offshorewind: 1.000
+# Medium water
+  - range: [-70, -40]
+    cost:
+      offshorewind: 1.000
+# Deep water
+  - range: [-100, -70]
+    cost:
+      offshorewind: 1.000
+
+# Shore distance modifier (factors relative to average investment cost)
+shore_distance_modifier:
+  - range: [0, 20000]
+    cost:
+      offshorewind: 1.000
+  - range: [20000, 50000]
+    cost:
+      offshorewind: 1.000
+  - range: [50000, 100000]
+    cost:
+      offshorewind: 1.500
+  - range: [100000, .inf]
+    cost:
+      offshorewind: 1.000
+
+# Regional cost modifiers (factors relative to average investment cost)
+region_modifier:
+  North:
+    onshorewind: 1.055
+    solar: 1.083
+  East:
+    onshorewind: 1.090
+    solar: 1.125
+  Central:
+    onshorewind: 1.084
+    solar: 1.111
+  Northeast:
+    onshorewind: 1.054
+    solar: 1.028
+  Northwest:
+    onshorewind: 1.000
+    solar: 1.000
+  South:
+    onshorewind: 1.122
+    solar: 1.160
+
+# Share of land cover types suitable for each technology
+suitability_coefficients:
+  10: # Tree cover
+    onshorewind: 0.60
+    solar: 0.05
+  20: # Shrubland
+    onshorewind: 0.60
+    solar: 0.05
+  30: # Grassland
+    onshorewind: 0.60
+    solar: 0.05
+  40: # Cropland
+#    onshorewind: 0.0
+    solar: 0.15
+#  50: # Urban/Built-up
+#    onshorewind: 0.0
+#    solar: 0.0
+  60: # Bareland
+    onshorewind: 0.80
+    solar: 0.30
+
+  #70: # Snow/Ice
+  #  onshorewind: 0.0
+  #  solar: 0.0
+  #80: # Water bodies
+  #  onshorewind: 0.0
+  #  solar: 0.0
+  #90: # Wetlands
+  #  onshorewind: 0.0
+  #  solar: 0.0
+  #100: # Moss and lichen
+  #  onshorewind: 0.0
+  #  solar: 0.0

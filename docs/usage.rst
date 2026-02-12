@@ -12,7 +12,7 @@ scripts and the Snakemake pipeline.
 Overview of the workflow
 ------------------------
 
-1. Prepare a Python environment and clone the repository.
+1. Complete the repository and environment setup covered in the Getting Started guide.
 2. Create the study-region configuration files in ``configs/``.
 3. Populate the ``Raw_Spatial_Data`` folders with the required input datasets.
 4. Run :mod:`spatial_data_prep.py` to clip, harmonise, and derive helper rasters and vectors.
@@ -23,32 +23,20 @@ Overview of the workflow
 9. (Optional) Automate the workflow across many regions with the Snakemake rules in
    ``snakemake/``.
 
-Environment setup
------------------
+Prerequisites
+-------------
 
-.. code-block:: bash
-
-   git clone https://github.com/jome1/LAVA.git
-   cd LAVA
-   conda env create -f envs/requirements.yaml
-   conda activate lava
-
-The ``requirements.yaml`` file defines all Python dependencies that are used throughout the
-workflow, including ``atlite`` for resource aggregation, ``openeo`` for fetching ESA WorldCover
-data, and geospatial tooling used in the preprocessing scripts.
+The Usage steps below assume that you have already cloned the repository, created the
+``lava`` Conda environment from ``envs/requirements.yaml``, and activated it. Those steps, along
+with repository layout and configuration template locations, are documented in the
+``Getting Started`` instructions.
 
 Configuration files
 -------------------
 
-Create local configuration files based on the provided templates:
-
-.. code-block:: bash
-
-   cp configs/config_template_china.yaml configs/config.yaml
-   cp configs/onshorewind_template_china.yaml configs/onshorewind.yaml
-   cp configs/solar_template_china.yaml configs/solar.yaml
-
-Key items to review in ``configs/config.yaml`` include:
+Copy the study-region templates referenced in the Getting Started guide if you have not done so
+yet, then review the configuration entries before running the scripts. Key items in
+``configs/config.yaml`` include:
 
 * ``study_region_name`` and ``country_code`` which define the output directory and support
   catalogue downloads.
@@ -65,24 +53,33 @@ Technology-specific exclusion and suitability thresholds reside in ``configs/ons
 and ``configs/solar.yaml``. Adjust the resource-grade definitions, minimum area filters, and
 modifier weights before running exclusions and suitability calculations.
 
-Input data expectations
------------------------
+Data inputs
+-----------
 
-The repository already contains the directory tree under ``Raw_Spatial_Data/``. Populate the
-folders before launching preprocessing:
+Populate ``Raw_Spatial_Data/`` according to the data sources described in the README. The most
+commonly used inputs are:
 
-* ``DEM/`` – place the DEM raster referenced by ``DEM_filename``.
-* ``landcover/`` – only required when ``landcover_source`` is ``file``.
-* ``GOAS/`` – optional Global Oceans and Seas geopackage (``goas.gpkg``) for coastline buffers.
-* ``protected_areas/`` – local WDPA extracts when ``protected_areas_source`` is ``file``.
-* ``global_solar_wind_atlas/`` – cached layers downloaded by the scripts when the respective
-  flags are enabled.
-* ``OSM/`` – shapefiles from Geofabrik when ``OSM_source`` is ``geofabrik`` (Overpass requests are
-  handled automatically).
-* ``additional_exclusion_polygons/`` and ``additional_exclusion_rasters/`` – user-defined
-  supplementary constraints referenced in the configuration.
-* ``weather_data/`` – atlite cut-outs used later for energy profile creation. The helper
-  :mod:`weather_data_prep.py` script can be adapted to request ERA5 cut-outs if needed.
+* **Digital elevation model (DEM)** – Download a terrain model such as the GEBCO gridded bathymetry
+  raster, rename it to ``gebco_cutout.tif``, and place it in ``Raw_Spatial_Data/DEM/``. Higher
+  resolution DTMs can be substituted when available.
+* **Land-cover rasters** – Use ESA WorldCover via ``openeo`` or download datasets such as CORINE.
+  Place locally sourced rasters in ``Raw_Spatial_Data/landcover/`` and set ``landcover_source`` to
+  ``file``.
+* **OpenStreetMap extracts** – Fetch shapefiles from Geofabrik for the study region, unzip them,
+  and copy the folder into ``Raw_Spatial_Data/OSM/``. The scripts derive roads, railways, and
+  airports from these layers.
+* **Coastline buffers** – Download the Global Oceans and Seas geopackage, rename it ``goas.gpkg``,
+  and store it in ``Raw_Spatial_Data/GOAS/`` for coastal studies.
+* **Protected areas** – Either provide WDPA downloads in ``Raw_Spatial_Data/protected_areas/`` or
+  configure the automated download via ``protected_areas_source: wdpa``.
+* **Atlas layers** – Mean wind speed and solar resource rasters can be fetched automatically when
+  the corresponding flags are enabled; cached copies are saved in
+  ``Raw_Spatial_Data/global_solar_wind_atlas/``.
+* **Additional exclusions** – Place any custom polygons or rasters in the
+  ``Raw_Spatial_Data/additional_exclusion_polygons/`` and
+  ``Raw_Spatial_Data/additional_exclusion_rasters/`` folders and reference them from the configs.
+* **Weather cut-outs** – Store atlite-ready NetCDF files under ``weather_data/``. Use
+  :mod:`weather_data_prep.py` as a template for preparing ERA5 cut-outs.
 
 Spatial preprocessing
 ---------------------
