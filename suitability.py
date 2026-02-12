@@ -226,9 +226,6 @@ if suitability_params:
             costmap[tech] *= (1 + terrain_factor * config_suitability["modifier_weights"]["terrain"][tech])
 
             export_raster(terrain_factor, os.path.join(output_path, f'terrain_factor_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
-            export_raster(terrain_ruggedness_reproj, os.path.join(output_path, f'terrain_ruggedness_reproj_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
-
-            terrain_ruggedness_reproj
 
         # --- TOPOGRAPHY (optional) ---
         if "topography" in suitability_params:
@@ -399,10 +396,6 @@ if multi_tech:
         arrays = [tech_grades[tech][rg] for tech, rg in zip(suitability_techs, tech_combo)]
         inclusion_area = overlap(arrays)
 
-        if inclusion_area.sum() <= 0:
-            print(f'No potential found for {tech} resource grade {rg} in {region_name}.')
-            continue
-
         if inclusion_area.sum() < min_size_rg:
             print(f'Potential found for combination {tech_combo} and in {region_name} is below minimum. Adding to distributed area.')
             for tech in suitability_techs:
@@ -450,13 +443,13 @@ else:
     print(f'No potential found for distributed areas in {region_name}.')
     
 
-# Export potentials to CSV (only relevant resource grades)
+# Export potentials to CSV
 print(f'Exporting potentials to {rel_path(output_path)}')
 potentials_file = os.path.join(output_path, f'{region_name}_{scenario}_resource_grade_potentials.csv')
-df_potentials.dropna(how='all').to_csv(potentials_file)
+df_potentials.to_csv(potentials_file)
 for tech in suitability_techs:
     df_tier_potentials_file = os.path.join(output_path, f'{region_name}_{tech}_{scenario}_tier_potentials.csv')
-    df_tier_potentials[tech].dropna(how='all').to_csv(df_tier_potentials_file)
+    df_tier_potentials[tech].to_csv(df_tier_potentials_file)
 
 # Export lists with the resource grades
 all_resource_grades = df_potentials.index.tolist()

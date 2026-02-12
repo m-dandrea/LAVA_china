@@ -1,10 +1,7 @@
 # LAVA - *LA*nd a*V*ailability *A*nalysis 
 
 LAVA is a tool to calculate the available area in a user defined study region for building renewable energy generators like utility-scale solar PV and wind onshore.
-First, all needed data is preprocessed to bring it into the right format. This data can be analyzed to get a better understanding of the study region. Finally, the land eligibility analysis is done with the help of [`atlite`](https://github.com/PyPSA/atlite) or [`GLAES`](https://github.com/FZJ-IEK3-VSA/glaes) (GLAES does not work fully yet).
-
-
-# :construction: :warning: Work in progress! :construction_worker:
+First, all needed data is preprocessed to bring it into the right format. This data can be analyzed to get a better understanding of the study region. Finally, the land eligibility analysis is done with the help of [`atlite`](https://github.com/PyPSA/atlite).
 
 
 ## 0. Files setup
@@ -37,7 +34,7 @@ Following data must be downloaded (partly manually :wrench:, partly automaticall
 [CORINE landcover global dataset](https://zenodo.org/records/3939050) is a recommended file with global landcover data. But it only has a resolution of ~100m. If you want to use it, you need to download the file from zenodo named __*PROBAV_LC100_global_v3.0.1_2019-nrt_Discrete-Classification-map_EPSG-4326.tif*__. Leave the name as it is and put it in the __"Raw_Spatial_Data"__ folder. :warning: Attention: the file size is 1.7 GB
 You can also use landcover data from a different data source (then the coloring needs to be adjusted). 
 
-* __OSM__ :wrench:: [OpenStreetMap Shapefile](https://download.geofabrik.de/) contains tons of geodata. Download the file of the country or region where your study region is located. Click on the relevant continent and then country to download the ´.shp.zip´. Somtimes you can go even more granular by clicking on the country. The best is, to use the smallest available area where your study region is still inside to save storage space. Be aware of the files naming. Unzip and put the downloaded OSM data folder inside the __"OSM"__-folder.  
+* __OSM__ :wrench: :robot:: [OpenStreetMap Shapefile](https://download.geofabrik.de/) contains tons of geodata. Download the file of the country or region where your study region is located. Click on the relevant continent and then country to download the ´.shp.zip´. Somtimes you can go even more granular by clicking on the country. The best is, to use the smallest available area where your study region is still inside to save storage space. Be aware of the files naming. Unzip and put the downloaded OSM data folder inside the __"OSM"__-folder.  
 The OSM data is used to extract railways, roads and airports. Be aware, that these files can quickly become big making the calculations slow. Handle roads with caution. Often there are many roads which leads to big files.
 
 * __Coastlines__ :wrench:: [Global Oceans and Seas](https://marineregions.org/downloads.php) contains all oceans and seas. It is used to buffer the coastlines. This file is only needed, when the study region has a coastline. Click on "Global Oceans and Seas" and download the geopackage. Unzip, name the file __*"goas.gpkg"*__ and put it into the folder __"GOAS"__ in the __"Raw_Spatial_Data"__ folder.
@@ -78,115 +75,7 @@ Be aware with __landcover data__: This type of data is good to estimate the pote
 Take additional care when using a study region with a __coastline__. Coastlines can be very difficult and complex. Always cross check the results.
 
 
-## 2. Configuration
-In the __"configs"__-folder copy the file `config_template.yaml` and rename it to `config.yaml`.
-In the `config.yaml` file you can configure the data preprocessing and the land exclusion. You can also copy and rename the `config.yaml` if you want to test multiple settings. Be aware that the name of the `config.yaml` file needs to be the same in the scripts.
-
-In the `config.yaml` file you can choose which data you want to consider in the preprocessing.
-You also have to select your study region. When using the automatic download from [gadm.org](https://gadm.org/), you have to specify the name of the region (region_name) and the GADM level as it is used by gadm.org. Ideally you download the geopackage of the country you are interested in from [gadm.org](gadm.org) and load it into QGIS to find the right `gadm_level` and `region_name`. For some countries there are troubles downloading administrative boundaries from gadm.org. Then you must use your own custom study area file instead.
-Finally, you have to specify the land exclusions and buffer zones.
-At the bottom of the `config.yaml` file you can find the settings for advanced details. 
-
-
-## 3. Spatial data preparation
-The script `spatial_data_prep.py` performs multiple data preprocessing steps to facilitate the land analysis and land eligibility study:
-* download administrative boundary of the study region from [gadm.org](https://gadm.org/) using the package pygadm or use a custom polygon instead if wished (custom polygon needs to be put to the right folder wihtin __"Raw_Spatial_Data"__ folder) (alternative sources for administrative boundaries [here](https://x.com/yohaniddawela/status/1828026372968603788); nice tool with online visualization and download [here](https://mapscaping.com/country-boundary-viewer/))
-* calculate the local UTM zone (you can also set the projected CRS manually)
-* clip coastlines
-* process OSM data either from overpass or from geofabrik (clipping to study region)
-* clipp additional exclusion vector and raster data
-* clip and reproject landcover data and elevation data. 
-* create a slope map from the elevation data (calculated internally using `richdem`)
-* create an aspects map from the elevation data (calculated internally using `richdem`)
-* Elevation, slope and aspect are the also co-registered to the landcover data using nearest resampling. More on working with multiple raster files (resampling and registering): [here](https://pygis.io/docs/e_raster_resample.html)
-* create map showing pixels with slope bigger X and aspect between Y and Z (north facing pixels with slope where you would not build PV) (default: X=10°, Y=310°, Z=50°)
-* download and clip protected areas from WDPA or use your own local file
-* download, clip and co-register mean wind speed data to landcover (used to exclude areas with low wind speeds)
-* download, clip and co-register potential solar PV generation data to landcover (used to exclude areas with low solar PV production potential)
-
-
-For the preprocessing, some functions are used which are defined in the files in the folder "utils".
-
-The processed data is saved to a folder within the __"data"__-folder named according to the study region. 
-
-
-## 4. Land analysis
-:warning: use with caution, some functions were copied to spatial_data_prep.py (e.g. coloring of ESAworldcover from openeo, pixel size, ...)
-
-With the JupyterNotebook `data_exploration.ipynb` you can inspect the spatial data of your study region.
-In the second code cell just put the name of your study region as the folder with the preprocessed data is named. Additionally, put the right name of your landcover_source to fetch the correct legend and color dictionary.
-
-You need to run this notebook also to get the land use codes and the pixel size stored in seperate .json files.
-
-
-## 5. Land eligibility
-With the script `Exclusion.py` you can finally derive the available area of your study region. You can use the predefined exclusions in the `config.yaml` or customize it yourself. 
-The code automatically recognizes if a file does not exist and thus does not take into account the respective file for the exclusion (e.g. there is no coastlines files when having a study region without a coast).
-
-
-## 6. Bring all files in a QGIS project together
-:warning: not working due to QGIS python package troubles
-The script `create_qgis_project.py` puts all files together into a QGIS project to easily display them. This script needs to be used in the 'QGIS environment'. You can install it from the `requirements_qgis.yaml`. Additionally, you have to install the QGIS python package with the same version as your current QGIS installation in that environment. Sometimes you need to uninstall the python version in your environment and then install the QGIS python package inside in order to avoid trouble with package dependencies.
-
-`conda install -c conda-forge qgis=VERSIONNUMBER`
-
-
-## 7. Aggregating available land results
-Once the available land rasters are created you can combine them across study
-regions. The script `simple_results_analysis.py` scans all folders under
-`data/**/available_land/` for files matching `*_available_land_*.tif`. Files are
-grouped by technology and scenario. All rasters in a group are reprojected to
-EPSG:4326, merged, and then converted to polygons. The resulting geometries are
-written to a GeoPackage.
-
-```
-python simple_results_analysis.py --output aggregated_available_land.gpkg
-```
-
-If run from outside the repository root, provide ``--root PATH/TO/REPO``. The
-output GeoPackage will contain one layer per technology and scenario combination.
-
-## 8. Folder structure
-original from [here](https://tree.nathanfriend.com/?s=(%27opt5s!(%27fancy7~fullPath!false~trailingSCsh7~rootDot7)~B(%27B%27LAVA.configs.envs.other.utils.Raw_SpatiFDJ24custom_studyH4DEM4globFsoCr_wind_atCs4GOAS484OSM43.dJ%5C%27reg5_name%5C%27I*DEM6reg96soCr6wind63686EPSG6Cnduses6pixel_size6OSM_files0derived_from_DEMI-*slope0-*aspect02%2FI%27)~vers5!%271%27)-%20%20.%5Cn-6I2addit5Fexclus9s3protectedHs4.-5ion60*7!true8Cndcover95_polygonBsource!ClaFal_H_areaI4-Jata4%01JIHFCB987654320.-)
-
-```
-LAVA/
-├── 📁 configs
-│   ├── config_template.yaml
-│   └── config.yaml
-├── 📁 envs
-├── 📁 other
-├── 📁 utils
-├── 📁 Raw_Spatial_Data/
-│   ├── 📁 additional_exclusion_polygons
-│   ├── 📁 custom_study_area
-│   ├── 📁 DEM
-│   ├── 📁 global_solar_wind_atlas
-│   ├── 📁 GOAS
-│   ├── 📁 landcover
-│   ├── 📁 OSM
-│   └── 📁 protected_areas
-└── 📁 data/
-    └── 📁 "region_name"/
-        ├── *DEM*
-        ├── *region_polygon*
-        ├── *solar*
-        ├── *wind*
-        ├── *protected_areas*
-        ├── *landcover*
-        ├── *EPSG*
-        ├── *landuses*
-        ├── *pixel_size*
-        ├── *OSM_files*
-        ├── 📁 derived_from_DEM/
-        │   ├── *slope*
-        │   └── *aspect*
-        ├── 📁 additional_exclusion_polygons/
-        └── 📁 available_land/
-```
-        
-
-## 9. More info / notes
+## More info / notes
 * Terrascope API: not implemented because of limited functionalities (e.g. only downloads tiles, data cannot be clipped to area of interest). [API documentation](https://vitobelgium.github.io/terracatalogueclient/api.html), [ESAworldvcover Product](https://docs.terrascope.be/#/DataProducts/WorldCover/WorldCover),
 
 * [adding basemaps to QGIS](https://gis.stackexchange.com/questions/20191/adding-basemaps-in-qgis)
@@ -197,7 +86,7 @@ For a more nuanced assessment read the articel (for some applications FABDEM mig
 
 
 
-## 10. Interesting additional datasets
+## Interesting additional datasets
 * [GEDTM30](https://github.com/openlandmap/GEDTM30): GEDTM30 is a global 1-arc-second (~30m) Digital Terrain Model (DTM) built using a machine-learning-based data fusion approach. It can be used as an alternative to the GEBCO DEM. GEDTM30 will hopefully integrated with openeo soon.
 * [Global Lakes and Wetlands Database](https://essd.copernicus.org/articles/17/2277/2025/#section6): comprehensive global map of 33 different types of wetlands around the world.
 

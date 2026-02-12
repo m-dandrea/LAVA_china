@@ -25,8 +25,6 @@ region_name = clean_region_name(region_name)
 technology = config["technology"]
 scenario = config.get('scenario', 'ref') # scenario, e.g., 'ref' or 'high'
 weather_year = config["weather_year"]
-weather_data_extend = config['weather_data_extend'] 
-country_code = config["country_code"]
 
 # override values via command line arguments through snakemake
 parser = argparse.ArgumentParser()
@@ -103,21 +101,14 @@ if config.get('weather_external_data_path'):
     weather_data_path = os.path.abspath(config["weather_external_data_path"])
 else:
     weather_data_path = os.path.join(dirname, 'Raw_Spatial_Data', 'Weather_data')
-
-# Cutout metadata file with the geographical extend
-cutout_metadata_file = os.path.join(weather_data_path, 'cutout_metadata.json')
-with open(cutout_metadata_file, 'r') as f:
-    cutout_metadata = json.load(f)
-
-cutout_files = glob.glob(os.path.join(weather_data_path, f'{cutout_metadata["weather_data_extend"]}_{weather_year}*.nc'))
-
-# If no cutout files found, raise error
-if not cutout_files:
-    raise FileNotFoundError(f"No cutout files found for year {weather_year} in {weather_data_path} with extend {cutout_metadata['weather_data_extend']}")
+cutout_files = glob.glob(os.path.join(weather_data_path, f'*{weather_year}*'))
 
 # Regional entent
 x1, y1, x2, y2 = region.to_crs(global_crs_obj).total_bounds 
 offset = 1 # Offset to ensure the cutout includes the entire region
+
+# Open netcdf cutout files
+ds = xr.open_mfdataset(cutout_files)
 
 # Pre-allocate a dataframe for potentials and time series
 time = pd.date_range(start=f'{weather_year}-01-01', end=f'{weather_year}-12-31 23:00', freq='h')
@@ -132,12 +123,12 @@ for cutout_file in cutout_files:
     if config['weather_bias_correction'][technology]:
         # Load bias correction data
         if technology in ['onshorewind', 'offshorewind']:
-            ERA5_wnd100m_bias_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_wnd100m_bias.nc')
+            ERA5_wnd100m_bias_path = os.path.join(weather_data_path, 'bias_correction_factors', 'ERA5_wnd100m_bias.nc')
             ERA5_wnd100m_bias = xr.open_dataset(ERA5_wnd100m_bias_path).sel(x=slice(x1 - offset, x2 + offset), y=slice(y1 - offset, y2 + offset))
             # Apply bias correction
             cutout.data['wnd100m'] = cutout.data['wnd100m'] * ERA5_wnd100m_bias['wnd100m']
         elif technology == 'solar':
-            ERA5_ghi_bias_path = os.path.join(weather_data_path, 'bias_correction_factors', f'{cutout_metadata["weather_data_extend"]}_ERA5_ghi_bias.nc')
+            ERA5_ghi_bias_path = os.path.join(weather_data_path, 'bias_correction_factors', 'ERA5_ghi_bias.nc')
             ERA5_ghi_bias = xr.open_dataset(ERA5_ghi_bias_path).sel(x=slice(x1 - offset, x2 + offset), y=slice(y1 - offset, y2 + offset))
             # Apply bias correction
             cutout.data['influx_direct'] = cutout.data['influx_direct'] * ERA5_ghi_bias['ghi']
@@ -151,7 +142,7 @@ for cutout_file in cutout_files:
 
         # Load the potential
         if input_area == 'resource_grades':
-            potentialPath = os.path.join(data_path, 'suitability', f"{p}_{scenario}_{local_crs_tag}.tif")
+            potentialPath = os.path.join(data_path, 'suitability', f"{p}_{local_crs_tag}.tif")
             excluder.add_raster(potentialPath, codes=1, invert=True)
         elif input_area == 'available_land':
             potentialPath = os.path.join(data_path, 'available_land', f"{region_name}_{technology}_{scenario}_available_land_{local_crs_tag}.tif")

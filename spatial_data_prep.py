@@ -371,7 +371,8 @@ if consider_additional_exclusion_rasters:
         filepath = os.path.join(source_dir, filename)    # Construct the full file path
         # Check if the file is either a GeoJSON or GeoPackage
         if filename.endswith(".tif"):
-            clip_reproject_raster(filepath, region_name_clean, region_mollweide, f'{counter}', global_crs_obj, 'nearest', 'float64', add_excl_rasters_dir)
+            data_name = os.path.splitext(filename)[0]
+            clip_raster(filepath, region_name_clean, region, add_excl_rasters_dir, data_name)
             counter = counter + 1
 
 
