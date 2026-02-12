@@ -20,6 +20,65 @@ import rasterstats
 
 import logging
 
+
+def resolve_weather_years(raw_years):
+    """
+    Normalise arbitrary weather-year inputs into a list.
+
+    Supported forms:
+    - Single integers/strings (2015 or "2015") -> [2015]
+    - Iterables (lists/sets) -> flattened
+    - Comma-separated strings ("2015,2020") -> [2015, 2020]
+    - Ranges using "start*end" inclusive of start, exclusive of end,
+      consistent with ``range`` semantics. Values are emitted as strings.
+    """
+
+    def _expand(value):
+        if value is None:
+            return []
+        if isinstance(value, (list, tuple, set)):
+            expanded = []
+            for item in value:
+                expanded.extend(_expand(item))
+            return expanded
+        if isinstance(value, (int, float)):
+            return [int(value)]
+        if isinstance(value, str):
+            token = value.strip()
+            if not token:
+                return []
+            if "*" in token:
+                start_text, _, end_text = token.partition("*")
+                try:
+                    start_year = int(start_text)
+                    end_year = int(end_text)
+                except ValueError:
+                    return [token]
+                if start_year > end_year:
+                    start_year, end_year = end_year, start_year
+                return [str(y) for y in range(start_year, end_year)]
+            if "," in token:
+                expanded = []
+                for part in token.split(","):
+                    expanded.extend(_expand(part))
+                return expanded
+            try:
+                return [int(token)]
+            except ValueError:
+                return [token]
+        return [value]
+
+    seen = set()
+    normalised = []
+    for entry in _expand(raw_years):
+        key = str(entry)
+        if not key:
+            continue
+        if key not in seen:
+            seen.add(key)
+            normalised.append(entry)
+    return normalised
+
 def get_country_bounds_from_code(country_code):
     """
     Retrieve bounding box [minx, miny, maxx, maxy] for a country ISO2/ISO3 code.
