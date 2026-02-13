@@ -159,10 +159,45 @@ weather_data_geo_bounds:
     'east': 135
     'north': 54
 
-# Apply bias correction to ERA5 wind data based on Global Wind Atlas and Global Solar Atlas data
+# Apply bias correction to ERA5 wind and solar data based on Global Wind Atlas and Global Solar Atlas data
 weather_bias_correction:
   onshorewind: true
   offshorewind: true
-  solar: false
+  solar: true
 
-weather_bias_range: [0.5, 2.0] # Limit min and max bias correction factors to this range
+weather_bias_range: [0.3, 3.0] # Limit min and max bias correction factors to this range
+
+# Region grouping based on geography
+region_group:
+  Anhui: East
+  Beijing: North
+  Chongqing: Central
+  East-InnerMongolia: Northeast
+  Fujian: East
+  Gansu: Northwest
+  Guangdong: South
+  Guangxi: South
+  Guizhou: South
+  Hainan: South
+  Hebei: North
+  Heilongjiang: Northeast
+  Henan: Central
+  Hubei: Central
+  Hunan: Central
+  Jiangsu: East
+  Jiangxi: Central
+  Jilin: Northeast
+  Liaoning: Northeast
+  Ningxia: Northwest
+  Qinghai: Northwest
+  Shaanxi: Northwest
+  Shandong: East
+  Shanghai: East
+  Shanxi: North
+  Sichuan: Central
+  Tianjin: North
+  West-InnerMongolia: North
+  Xinjiang: Northwest
+  Xizang: Northwest
+  Yunnan: South
+  Zhejiang: East
