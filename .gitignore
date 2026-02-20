@@ -4,6 +4,7 @@
 # --- Setup ---
 !envs
 !envs/requirements.yaml
+!envs/win-64.lock.yaml
 # --- Main scripts ---
 !spatial_data_prep.py
 !Exclusion.py
@@ -50,20 +51,22 @@
 !Raw_Spatial_Data/weather_data/bias_correction_factors/.gitkeep
 !weather_data
 !weather_data/wind_speed_regions.ipynb
+!Raw_Spatial_Data/population
+!Raw_Spatial_Data/population/.gitkeep
 # --- Config files ---
 !configs
-!configs/examples
 !configs/config_template.yaml
-!configs/config_advanced_settings_template.yaml
-!configs/config_template_china.yaml
-!configs/config_snakemake.yaml
-!configs/config_snakemake_template_china.yaml
-!configs/onshorewind_template_china.yaml
-!configs/solar_template_china.yaml
-!configs/onshorewind_template.yaml
 !configs/solar_template.yaml
-!configs/offshorewind_template_china.yaml
-!configs/suitability_template_china.yaml
+!configs/onshorewind_template.yaml
+!configs/snakemake.yaml
+!configs/advanced_settings/advanced_data_prep_settings_template.yaml
+!configs/examples
+!configs/examples/config_template_china.yaml
+!configs/examples/snakemake_template_china.yaml
+!configs/examples/onshorewind_template_china.yaml
+!configs/examples/solar_template_china.yaml
+!configs/examples/offshorewind_template_china.yaml
+!configs/examples/suitability_template_china.yaml
 !configs/technologies
 !configs/technologies/HW_distributed_farm.yaml
 !configs/technologies/LW_distributed_farm.yaml
@@ -86,11 +89,19 @@
 !docs/.gitkeep
 !docs/conf.py
 !docs/index.rst
+!docs/background.rst
 !docs/getting_started.rst
 !docs/requirements-docs.txt
 !docs/troubleshooting.rst
-!docs/usage.rst
+!docs/basic_workflow.rst
+!docs/full_workflow.rst
 !docs/faq.rst
+!docs/data_sources.rst
+!docs/_static
+!docs/_static/custom.css
+!docs/_static/literature_overview.xlsx
+!docs/_static/exclusion_parameters_overview.xlsx
+!docs/faq.md
 !.readthedocs.yaml
 # --- User interface ---
 !tkinter_app

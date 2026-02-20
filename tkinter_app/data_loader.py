@@ -24,7 +24,7 @@ CONFIGS_PATH= ROOT_DIR / "configs"
 CONFIG_PATH = CONFIGS_PATH / "config.yaml"
 ONSHORE_PATH = CONFIGS_PATH / "onshorewind.yaml"
 SOLAR_PATH = CONFIGS_PATH / "solar.yaml"
-CONFIG_SNAKEMAKE_PATH = CONFIGS_PATH / "config_snakemake.yaml"
+CONFIG_SNAKEMAKE_PATH = CONFIGS_PATH / "snakemake.yaml"
 SAMPLE_RESULTS_PATH = ROOT_DIR / "src" / "sample-results.json"
 
 YAML_RT: Optional[YAML] = None  # type: ignore[assignment]

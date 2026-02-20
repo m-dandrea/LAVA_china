@@ -962,7 +962,7 @@ class ConfigurationTab(ttk.Frame):
         specs = [
             ("onshorewind.yaml", (CONFIGS_DIR / "onshorewind.yaml", PARENT_DIR / "onshorewind.yaml"), load_onshore_sections, "generic"),
             ("solar.yaml", (CONFIGS_DIR / "solar.yaml", PARENT_DIR / "solar.yaml"), load_solar_sections, "generic"),
-            ("config_snakemake.yaml", (CONFIGS_DIR / "config_snakemake.yaml", PARENT_DIR / "config_snakemake.yaml"), load_config_snakemake_sections, "config_snakemake"),
+            ("snakemake.yaml", (CONFIGS_DIR / "snakemake.yaml", PARENT_DIR / "snakemake.yaml"), load_config_snakemake_sections, "config_snakemake"),
         ]
         for label, candidate_paths, section_loader, kind in specs:
             existing_path: Optional[Path] = None
@@ -2575,7 +2575,7 @@ class RunTab(ttk.Frame):
     def _load_snakemake_settings(self) -> Tuple[str, int]:
         default_snakefile = "Snakefile"
         default_cores = 4
-        path = PARENT_DIR / "config_snakemake.yaml"
+        path = PARENT_DIR / "snakemake.yaml"
         if yaml is None or not path.exists():
             return default_snakefile, default_cores
         try:
