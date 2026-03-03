@@ -225,8 +225,8 @@ if suitability_params:
             # Apply terrain weight
             costmap[tech] *= (1 + terrain_factor * config_suitability["modifier_weights"]["terrain"][tech])
 
-            export_raster(terrain_factor, os.path.join(output_path, f'terrain_factor_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
-            export_raster(terrain_ruggedness_reproj, os.path.join(output_path, f'terrain_ruggedness_reproj_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
+            export_raster(terrain_factor, os.path.join(output_path, f'terrain_factor_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj, dtype="float32", nodata=0)
+            export_raster(terrain_ruggedness_reproj, os.path.join(output_path, f'terrain_ruggedness_reproj_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj, dtype="float32", nodata=0)
 
             terrain_ruggedness_reproj
 
@@ -242,7 +242,7 @@ if suitability_params:
             # Apply elevation weight
             costmap[tech] *= (1 + topography_factor * config_suitability["modifier_weights"]["topography"][tech])
 
-            export_raster(topography_factor, os.path.join(output_path, f'topography_factor_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
+            export_raster(topography_factor, os.path.join(output_path, f'topography_factor_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj, dtype="float32", nodata=0)
 
         # --- SUBSTATION DISTANCE (optional) ---
         if "substation_distance" in suitability_params:
@@ -252,7 +252,7 @@ if suitability_params:
             # Apply substation distance weight
             costmap[tech] *= (1 + substation_factor * config_suitability["modifier_weights"]["substation_distance"][tech])
 
-            export_raster(substation_factor, os.path.join(output_path, f'substation_factor_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
+            export_raster(substation_factor, os.path.join(output_path, f'substation_factor_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj, dtype="float32", nodata=0)
 
         # --- REGION (optional) ---
         if "region" in suitability_params:
@@ -271,7 +271,7 @@ if suitability_params:
 
 
         # --- Export cost maps ---
-        export_raster(costmap[tech] * potential[tech],  os.path.join(output_path, f'costmap_{tech}_{scenario}_available_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
+        export_raster(costmap[tech] * potential[tech],  os.path.join(output_path, f'costmap_{tech}_{scenario}_available_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj, dtype="float32", nodata=0)
 
 else:
     print('No suitability parameters selected. Calculating only resource grades')
@@ -286,7 +286,7 @@ if "suitability_coefficients" in config_suitability:
                 continue
             mask = (land_cover_reproj == landcover_type)
             suitability_factor[tech][mask] = vals[tech]
-        export_raster(suitability_factor[tech], os.path.join(output_path, f'suitability_factor_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj)
+        export_raster(suitability_factor[tech], os.path.join(output_path, f'suitability_factor_{tech}_{scenario}_{region_name}_{local_crs_tag}.tif'), ref, local_crs_obj, dtype="float32", nodata=0)
     # Average tech suitability factor
     suitability_factor["average"] = np.ones_like(ref.read(1), dtype=float)
     for tech in suitability_techs:
@@ -374,7 +374,7 @@ for tech in suitability_techs:
             continue
 
         # Save potential area and export raster
-        export_raster(inclusion_area, os.path.join(output_path, f'{region_name}_{rg}_{scenario}_{local_crs_tag}.tif'), ref, local_crs_obj)
+        export_raster(inclusion_area, os.path.join(output_path, f'{region_name}_{rg}_{scenario}_{local_crs_tag}.tif'), ref, local_crs_obj, dtype="uint8", nodata=0)
         if "suitability_coefficients" in config_suitability:
             inclusion_area = inclusion_area * suitability_factor[tech]
         df_potentials.loc[f"{region_name}_{rg}", "Potential"] = np.sum(inclusion_area) * pixel_area_km2
@@ -410,7 +410,7 @@ if multi_tech:
             continue
 
         # Save potential area and export raster
-        export_raster(inclusion_area, os.path.join(output_path, f"{region_name}_" + "_".join(tech_combo) + f"_{scenario}_{local_crs_tag}.tif"), ref, local_crs_obj)
+        export_raster(inclusion_area, os.path.join(output_path, f"{region_name}_" + "_".join(tech_combo) + f"_{scenario}_{local_crs_tag}.tif"), ref, local_crs_obj, dtype="uint8", nodata=0)
         if "suitability_coefficients" in config_suitability:
             inclusion_area = inclusion_area * suitability_factor[tech]
         df_potentials.loc[f"{region_name}_" + "_".join(tech_combo), "Potential"] = np.sum(inclusion_area) * pixel_area_km2
@@ -434,7 +434,7 @@ if "suitability_coefficients" in config_suitability:
 
 if distributed_area.sum() > 0:
     df_potentials.loc[f"{region_name}_distributed", "Potential"] = np.sum(distributed_area) * pixel_area_km2
-    export_raster(distributed_area, os.path.join(output_path, f'{region_name}_distributed_{scenario}_{local_crs_tag}.tif'), ref, local_crs_obj)
+    export_raster(distributed_area, os.path.join(output_path, f'{region_name}_distributed_{scenario}_{local_crs_tag}.tif'), ref, local_crs_obj, dtype="uint8", nodata=0)
 
     if suitability_params:
         for t in config_suitability["tiers"]:

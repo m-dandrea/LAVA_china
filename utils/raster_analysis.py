@@ -145,25 +145,78 @@ def filter(filter_array, value_array, vmin, vmax):
 
     return filtered_mask.astype(int)
 
-def export_raster(array, path, ref, crs):
+
+import numpy as np
+import rasterio
+
+
+def export_raster(
+    array,
+    path,
+    ref,
+    crs,
+    dtype=None,
+    nodata=None,
+    compress="deflate",   # or "zstd" if available
+    tile_size=256
+):
     """
-    Export a numpy array as a raster file.
-    
-    Parameters:
-        array (numpy.ndarray): The data to export.
-        path (str): The file path to save the raster.
-        ref (rasterio.io.DatasetReader): Reference raster for CRS and transform.
+    Export numpy array to GeoTIFF optimized for both binary and float rasters.
+
+    Parameters
+    ----------
+    array : np.ndarray
+        2D raster data
+    path : str
+        Output path
+    ref : rasterio dataset
+        Reference raster for transform
+    crs : CRS
+        Coordinate reference system
+    dtype : str or numpy dtype, optional
+        Output dtype (e.g. "uint8", "float32")
+        If None, inferred from array
+    nodata : numeric, optional
+        Nodata value
+    compress : str
+        "deflate", "lzw", or "zstd"
+    tile_size : int
+        Tile block size (default 256)
     """
+
+    # ---- Determine dtype ----
+    if dtype is None:
+        dtype = array.dtype
+
+    array = array.astype(dtype)
+
+    # ---- Choose predictor automatically ----
+    if np.issubdtype(np.dtype(dtype), np.floating):
+        predictor = 3
+        if nodata is None:
+            nodata = np.nan
+    else:
+        predictor = 2
+        if nodata is None:
+            nodata = 0
+
     with rasterio.open(
-        path, 'w',
-        driver='GTiff',
+        path,
+        "w",
+        driver="GTiff",
         height=array.shape[0],
         width=array.shape[1],
         count=1,
-        dtype=array.dtype,
+        dtype=dtype,
         crs=crs,
         transform=ref.transform,
-        nodata=0
+        nodata=nodata,
+        tiled=True,
+        blockxsize=tile_size,
+        blockysize=tile_size,
+        compress=compress,
+        predictor=predictor,
+        bigtiff="if_safer",
     ) as dst:
         dst.write(array, 1)
 
